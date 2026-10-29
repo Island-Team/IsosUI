@@ -1,0 +1,48 @@
+name: Release IsosUI
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag, such as v0.1.0
+        required: true
+        type: string
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Verify tag and package version
+        env:
+          ISOSUI_TAG: ${{ inputs.tag }}
+        run: |
+          test "$(git describe --tags --exact-match HEAD)" = "$ISOSUI_TAG"
+          node -e 'const p=require("./package.json");if(process.env.ISOSUI_TAG!==`v${p.version}`)process.exit(1)'
+      - run: npm ci
+      - name: Build both targets
+        env:
+          ISOSUI_VERSION: ${{ inputs.tag }}
+        run: npm run build
+      - name: Package and checksum
+        env:
+          ISOSUI_TAG: ${{ inputs.tag }}
+        run: |
+          mkdir -p release
+          tar -C dist/local -czf "release/isosui-local-$ISOSUI_TAG.tar.gz" .
+          tar -C dist/hosted -czf "release/isosui-hosted-$ISOSUI_TAG.tar.gz" .
+          cd release
+          sha256sum isosui-*.tar.gz > SHA256SUMS
+          sha256sum -c SHA256SUMS
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISOSUI_TAG: ${{ inputs.tag }}
+        run: gh release create "$ISOSUI_TAG" release/* --verify-tag --generate-notes

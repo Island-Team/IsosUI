@@ -1,0 +1,69 @@
+@use '../../styles/buttons' as buttons;
+@use '../../styles/variables' as *;
+
+.isos-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  min-height: 0;
+  padding: 20px;
+  color: var(--text);
+  background: var(--bg);
+  &__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+  &__header h1 { margin: 0 0 6px; font-size: clamp(1.4rem, 3vw, 2rem); }
+  &__header p, &__toolbar p, &__placeholder p { max-width: 800px; margin: 0; color: var(--text-secondary); line-height: 1.5; }
+  &__header nav, &__tabs, &__toolbar > div { display: flex; flex-wrap: wrap; gap: 8px; }
+  button { @include buttons.outlined; min-height: 44px; }
+  button[aria-current='page'], &__toolbar button:last-child, &__inspector > button { @include buttons.primary; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  input:not([type='checkbox']), textarea { width: 100%; min-height: 44px; padding: 8px 10px; color: var(--text); background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; font: inherit; }
+  input:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  textarea { resize: vertical; }
+  label { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; color: var(--text-secondary); }
+  &__pair { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; padding: 12px; border: 1px solid var(--border); border-radius: 10px; }
+  &__pair p { width: 100%; margin: 0; }
+  &__pair label { min-width: min(100%, 250px); }
+  &__tabs { border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+  &__message { margin: 0; padding: 10px 12px; border-left: 3px solid var(--primary); background: var(--bg-secondary); overflow-wrap: anywhere; }
+  &__toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  &__toolbar p { font-size: .82rem; }
+  &__workspace { display: grid; grid-template-columns: minmax(0, 1fr) 300px; min-height: min(70vh, 780px); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  &__canvas { position: relative; min-width: 0; height: min(70vh, 780px); min-height: 540px; background: var(--bg-secondary); }
+  &__empty { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; color: var(--text-secondary); }
+  &__inspector { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 16px; overflow: auto; border-left: 1px solid var(--border); background: var(--bg); }
+  &__inspector h2 { margin: 16px 0 0; font-size: 1rem; }
+  &__inspector h2:first-child { margin-top: 0; }
+  &__inspector p { margin: 0; color: var(--text-secondary); font-size: .85rem; }
+  &__check { flex-direction: row; align-items: center; min-height: 44px; }
+  &__check input { width: 18px; height: 18px; accent-color: var(--primary); }
+  &__connections { margin: 0; padding: 0; list-style: none; }
+  &__connections li { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--border); font-size: .75rem; overflow-wrap: anywhere; }
+  &__connections button { min-width: 44px; }
+  &__diagnostics { padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
+  &__diagnostics h2 { margin: 0; font-size: 1rem; }
+  &__diagnostics li { margin: 8px 0; }
+  &__placeholder { min-height: 50vh; padding: 32px; border: 1px solid var(--border); border-radius: 12px; }
+  &__context { position: fixed; z-index: 1000; display: flex; flex-direction: column; min-width: 170px; padding: 6px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow-lg); }
+  &__context button { justify-content: flex-start; border: 0; }
+  @media (max-width: 1024px) { &__workspace { grid-template-columns: 1fr; } &__inspector { border-left: 0; border-top: 1px solid var(--border); } }
+  @media (max-width: 576px) { padding: 14px; &__header, &__toolbar { flex-direction: column; align-items: stretch; } &__canvas { height: 420px; min-height: 420px; } }
+}
+.isos-flow-node {
+  min-width: 190px;
+  padding: 12px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  &--selected { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-subtle); }
+  strong, small { display: block; }
+  small { margin-top: 4px; color: var(--text-secondary); }
+  &__ports { display: flex; justify-content: space-between; gap: 14px; margin-top: 12px; }
+  &__port { position: relative; min-height: 22px; font-size: .72rem; }
+  &__port--out { text-align: right; }
+  .react-flow__handle { width: 10px; height: 10px; background: var(--primary); border: 2px solid var(--bg); }
+}
+.isos-manager .react-flow__controls button { min-height: 26px; color: var(--text); background: var(--bg); border-color: var(--border); }
+.isos-manager .react-flow__minimap { background: var(--bg); border: 1px solid var(--border); }
