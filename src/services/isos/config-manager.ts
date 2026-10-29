@@ -42,6 +42,7 @@ export interface IsosDiagnostic { path: string; message: string; code?: string }
 export interface IsosGraphDocument { revision: string; graph: IsosGraph }
 export interface IsosValidation { valid: boolean; diagnostics: IsosDiagnostic[] }
 interface Envelope<T> { schema_version: 2; ok: boolean; data: T | null; error: string | null }
+type LoopbackRequestInit = RequestInit & { targetAddressSpace?: 'loopback' };
 
 /** Consume the one-time URL fragment before the browser records navigation. */
 export function consumeIsosToken(): boolean {
@@ -62,13 +63,16 @@ async function request<T>(path: string, method = 'GET', body?: unknown): Promise
   if (!token) throw new Error('Open the local editor with `isos open`, or enter its temporary token.');
   let response: Response;
   try {
-    response = await fetch(`${BASE}${path}`, {
+    const options: LoopbackRequestInit = {
       method,
       credentials: 'omit',
       cache: 'no-store',
       headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
+      // Chrome uses this hint for HTTPS-to-HTTP loopback permission and address verification.
+      ...(ISOSUI_TARGET === 'hosted' ? { mode: 'cors' as const, targetAddressSpace: 'loopback' as const } : {}),
+    };
+    response = await fetch(`${BASE}${path}`, options);
   } catch {
     throw new Error(ISOSUI_TARGET === 'hosted'
       ? 'Cannot reach local IsOS at 127.0.0.1:16000. Start IsOS and allow browser access to the local network.'
