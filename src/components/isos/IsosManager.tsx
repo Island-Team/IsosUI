@@ -3,7 +3,7 @@ import ReactFlow, { Background, Controls, Handle, MiniMap, Position, SelectionMo
 import 'reactflow/dist/style.css';
 import { CustomSelect } from '@/components/CustomSelect/CustomSelect';
 import {
-  applyIsosGraph, consumeIsosToken, getIsosGraph, getIsosProfiles, hasIsosToken, setIsosToken, validateIsosGraph,
+  applyIsosGraph, consumeIsosToken, getIsosGraph, getIsosProfiles, getIsosVersion, hasIsosToken, setIsosToken, validateIsosGraph,
   type IsosDiagnostic, type IsosEdge, type IsosGraph, type IsosNode, type IsosProfile,
 } from '@/services/isos/config-manager';
 import type { Language } from '@/types';
@@ -91,6 +91,8 @@ export const IsosManager: React.FC<IsosManagerProps> = ({ lang, onLanguageChange
   const refresh = useCallback(async (): Promise<void> => {
     setBusy(true);
     try {
+      const version = await getIsosVersion();
+      if (version.api_schema_version !== 2) throw new Error('This IsosUI build requires the IsOS v2 API. Update IsOS or use a compatible UI release.');
       const [document, catalog] = await Promise.all([getIsosGraph(), getIsosProfiles()]);
       setGraph(document.graph); setRevision(document.revision); setProfiles(catalog.profiles);
       setNewProfile((current) => current || catalog.profiles[0]?.id || '');

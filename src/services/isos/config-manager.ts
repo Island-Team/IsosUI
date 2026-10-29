@@ -60,13 +60,20 @@ export function hasIsosToken(): boolean { return Boolean(token); }
 
 async function request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   if (!token) throw new Error('Open the local editor with `isos open`, or enter its temporary token.');
-  const response = await fetch(`${BASE}${path}`, {
-    method,
-    credentials: 'omit',
-    cache: 'no-store',
-    headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${BASE}${path}`, {
+      method,
+      credentials: 'omit',
+      cache: 'no-store',
+      headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  } catch {
+    throw new Error(ISOSUI_TARGET === 'hosted'
+      ? 'Cannot reach local IsOS at 127.0.0.1:16000. Start IsOS and allow browser access to the local network.'
+      : 'Cannot reach the local IsOS API. Start IsOS and try again.');
+  }
   let envelope: Envelope<T> | null = null;
   try { envelope = await response.json() as Envelope<T>; } catch { /* HTTP failures can be plain text. */ }
   if (envelope && envelope.schema_version !== 2) {
@@ -80,6 +87,7 @@ async function request<T>(path: string, method = 'GET', body?: unknown): Promise
 }
 
 export function getIsosGraph(): Promise<IsosGraphDocument> { return request('/graph'); }
+export function getIsosVersion(): Promise<{ api_schema_version: number; isos_version: string }> { return request('/version'); }
 export function getIsosProfiles(): Promise<{ profiles: IsosProfile[] }> { return request('/profiles'); }
 export function validateIsosGraph(graph: IsosGraph): Promise<IsosValidation> {
   return request('/graph/validate', 'POST', { schema_version: 2, graph });
