@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "build:local": "webpack --mode production --env target=local && node scripts/write-manifest.mjs local",
     "build:hosted": "webpack --mode production --env target=hosted && node scripts/write-manifest.mjs hosted",
-    "build": "npm run typecheck && npm run build:local && npm run build:hosted"
+    "build": "npm run typecheck && npm run build:local && npm run build:hosted && node scripts/verify-bundles.mjs"
   },
   "dependencies": {
     "@fontsource/jetbrains-mono": "^5.3.0",
