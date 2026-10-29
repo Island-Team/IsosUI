@@ -9,10 +9,17 @@ Use Node.js 22 and npm 10 or newer:
 ```bash
 npm ci
 npm run dev
+npm test
 npm run build
 ```
 
-The development server serves the local build on port 3000. A production local build uses same-origin `/api/isos/v2`; to exercise it, serve `dist/local` from the IsOS process. The hosted build uses `http://127.0.0.1:16000/api/isos/v2` and requires the local IsOS server to allow the exact hosted origin. Open the editor through `isos open` or enter its temporary token. Tokens stay in memory and URL fragments are removed after loading.
+The development server serves the local build on port 3000. A production local build uses same-origin `/api/isos/v2`; to exercise it, serve `dist/local` from the IsOS process. The hosted build uses `http://127.0.0.1:16000/api/isos/v2` and requires the local IsOS server to allow the exact hosted origin. Start IsOS and open the editor to connect through the local port without a token. Legacy token fragments are consumed on load and held only in memory.
+
+## Workbench
+
+The graph fills the editor viewport. The icon toolbar opens Node Library, Configuration, Connections, Diagnostics, EOS, EGIA, and Mini Map windows; each icon has an accessible label and tooltip. Collapse Tools hides optional toolbar groups. Drag a floating window by its title, resize its lower corner, or use its title controls to collapse, float, or dock left, right, or bottom. The layout is stored in this browser only; Reset Layout restores the initial arrangement and does not edit the deployment graph. On narrow screens, windows become drawers. Standard desktop controls are about 30 px high and touch targets are at least 44×44 px.
+
+Select a node to open Configuration. Built-in EOS and EGIA nodes use the typed fields returned by IsOS `/api/isos/v2/profiles`; all graph nodes also expose package, launch, and advanced JSON settings. Validate reports errors by graph path, and Apply saves a revision after validation. Refresh asks before discarding local graph edits. Undo and Redo change only the local draft.
 
 ## Build contract
 

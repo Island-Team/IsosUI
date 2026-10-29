@@ -7,7 +7,7 @@
   justify-content: center;
   gap: $space-2;
   min-height: $control-height;
-  padding: 6px $control-padding-inline;
+  padding: 4px $control-padding-inline;
   border-radius: 4px;
   font-family: $font-mono;
   font-size: 0.78rem;
@@ -22,6 +22,7 @@
 
   @media (pointer: coarse), (max-width: 576px) {
     min-height: $touch-target;
+    min-width: $touch-target;
   }
 
   &:focus-visible {

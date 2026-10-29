@@ -3,6 +3,7 @@ const BASE = ISOSUI_TARGET === 'hosted' ? 'http://127.0.0.1:16000/api/isos/v2' :
 let token = '';
 
 export interface IsosProfilePort { name: string; type: string; required?: boolean; contract?: string }
+export interface IsosSettingField { path: string; type: 'string' | 'absolute_path' | 'integer' | 'number' | 'boolean' | 'enum'; label?: string; description?: string; required?: boolean; default?: unknown; min?: number; max?: number; options?: string[]; read_only?: boolean }
 export interface IsosProfile {
   id: string;
   version: string;
@@ -11,6 +12,7 @@ export interface IsosProfile {
   inputs?: IsosProfilePort[];
   outputs?: IsosProfilePort[];
   defaults?: Record<string, unknown>;
+  settings_fields?: IsosSettingField[];
 }
 export interface IsosNode {
   id: string;
@@ -55,19 +57,14 @@ export function consumeIsosToken(): boolean {
   return Boolean(token);
 }
 
-/** Allow manual pairing only in volatile module memory. */
-export function setIsosToken(value: string): void { token = value.trim(); }
-export function hasIsosToken(): boolean { return Boolean(token); }
-
 async function request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
-  if (!token) throw new Error('Open the local editor with `isos open`, or enter its temporary token.');
   let response: Response;
   try {
     const options: LoopbackRequestInit = {
       method,
       credentials: 'omit',
       cache: 'no-store',
-      headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       // Chrome uses this hint for HTTPS-to-HTTP loopback permission and address verification.
       ...(ISOSUI_TARGET === 'hosted' ? { mode: 'cors' as const, targetAddressSpace: 'loopback' as const } : {}),
@@ -85,6 +82,7 @@ async function request<T>(path: string, method = 'GET', body?: unknown): Promise
   }
   if (!response.ok || !envelope?.ok || envelope.data === null) {
     if (response.status === 409) throw new Error('This graph changed in another editor. Refresh before applying.');
+    if (response.status === 401) throw new Error('This IsOS version requires a token. Update IsOS to connect through the local port.');
     throw new Error(envelope?.error || `IsOS request failed (${response.status}).`);
   }
   return envelope.data;
