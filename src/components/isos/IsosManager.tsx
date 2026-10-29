@@ -199,7 +199,7 @@ export const IsosManager: React.FC<IsosManagerProps> = ({ lang, onLanguageChange
   const addNode = (profileOverride?: IsosProfile, kindOverride?: 'service' | 'backend' | 'skill'): void => {
     const id = newId.trim();
     if (!slug.test(id) || graph.nodes.some((node) => node.id === id)) { setMessage(copy.duplicate); return; }
-    const profile = profileOverride || profiles.find((item) => item.id === newProfile);
+    const profile = kindOverride ? undefined : profileOverride || profiles.find((item) => item.id === newProfile);
     if (!profile && !kindOverride) return;
     const role = profile?.id === 'eos.uds' ? undefined : profile?.id.startsWith('eos.') ? 'eos' : profile?.id.startsWith('egia.') ? 'egia' : undefined;
     const kind = profile?.id === 'eos.uds' ? 'endpoint' : profile ? 'component' : kindOverride || 'service';
