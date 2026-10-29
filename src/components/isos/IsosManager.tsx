@@ -303,7 +303,7 @@ export const IsosManager: React.FC<IsosManagerProps> = ({ lang, onLanguageChange
         onNodeDragStop={(_, node) => commitGraph((current) => ({ ...current, layout: { ...current.layout, [node.id]: node.position } }))}
         onSelectionChange={({ nodes }) => { const ids = nodes.map((node) => node.id); setSelected(ids); if (ids.length) openWindow('config'); }} selectionOnDrag selectionMode={SelectionMode.Partial}
         panOnDrag={[1]} zoomOnScroll zoomOnPinch onPaneContextMenu={(event) => { event.preventDefault(); setContext({ x: event.clientX, y: event.clientY }); }}
-        onNodeContextMenu={(event, node) => { event.preventDefault(); setSelected([node.id]); openWindow('config'); setContext({ x: event.clientX, y: event.clientY }); }} fitView minZoom={0.2} maxZoom={2}>
+        onNodeContextMenu={(event, node) => { event.preventDefault(); setSelected([node.id]); openWindow('config'); setContext({ x: event.clientX, y: event.clientY }); }} minZoom={0.2} maxZoom={2}>
         <Background color="var(--border)" />
       </ReactFlow>
       {!graph.nodes.length && <p className="isos-manager__empty">{copy.empty}</p>}
