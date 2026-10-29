@@ -172,7 +172,7 @@ export const IsosManager: React.FC<IsosManagerProps> = ({ lang, onLanguageChange
       if (window.innerWidth < 1000 || !layout.library.open || layout.library.mode !== 'float') return;
       adjustFrame = requestAnimationFrame(() => {
         const viewport = flow.getViewport();
-        void flow.setViewport({ ...viewport, x: viewport.x + Math.min(80, (window.innerWidth - 900) / 4) }, { duration: 250 });
+        void flow.setViewport({ ...viewport, x: viewport.x + Math.min(260, (window.innerWidth - 900) / 2) }, { duration: 250 });
       });
     });
     return () => { cancelAnimationFrame(frame); cancelAnimationFrame(adjustFrame); };
