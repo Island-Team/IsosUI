@@ -7,7 +7,7 @@ import { WorkbenchWindow } from './WorkbenchWindow';
 import { createGraphNode, editGraphNode } from './graph-edits';
 import { defaultLayout, loadLayout, saveLayout, WINDOW_IDS, type WindowId, type WindowPlacement, type WorkbenchLayout } from './workbench-layout';
 import {
-  applyIsosGraph, consumeIsosToken, getIsosGraph, getIsosProfiles, getIsosVersion, hasIsosToken, setIsosToken, validateIsosGraph,
+  applyIsosGraph, consumeIsosToken, getIsosGraph, getIsosProfiles, getIsosVersion, validateIsosGraph,
   type IsosDiagnostic, type IsosEdge, type IsosGraph, type IsosNode, type IsosProfile,
 } from '@/services/isos/config-manager';
 import type { Language } from '@/types';
@@ -18,7 +18,7 @@ interface ProfileNodeData { node: IsosNode; profile?: IsosProfile }
 const COPY = {
   en: {
     title: 'IsOS Workbench', intro: 'Connect typed nodes to configure EOS and EGIA. Applying saves a revision; running processes use their active revision until restarted.',
-    open: 'Open with isos open', token: 'Temporary token', connect: 'Connect', refresh: 'Refresh', validate: 'Validate', apply: 'Apply', saved: 'Configuration saved.', valid: 'Configuration is valid.',
+    open: 'Connect to local IsOS at 127.0.0.1:16000.', connect: 'Connect', refresh: 'Refresh', validate: 'Validate', apply: 'Apply', saved: 'Configuration saved.', valid: 'Configuration is valid.',
     profiles: 'Node profiles', add: 'Add node', nodeId: 'Node ID', selected: 'Selected node', none: 'Select a node to edit its configuration.', remove: 'Remove',
     settings: 'Settings JSON', invalidSettings: 'Settings must be a JSON object.', enabled: 'Enabled', packageId: 'Package ID', packageVersion: 'Package version',
     connections: 'Connections', consumer: 'Consumer', input: 'Input', provider: 'Provider', output: 'Output', connectNodes: 'Connect', noPorts: 'No ports',
@@ -30,7 +30,7 @@ const COPY = {
   },
   cn: {
     title: 'IsOS 工作台', intro: '连接带类型的节点以配置 EOS 和 EGIA。应用操作保存一个修订版本；运行中的进程在重启前继续使用原有版本。',
-    open: '使用 isos open 打开', token: '临时令牌', connect: '连接', refresh: '刷新', validate: '验证', apply: '应用', saved: '配置已保存。', valid: '配置有效。',
+    open: '连接到 127.0.0.1:16000 上的本机 IsOS。', connect: '连接', refresh: '刷新', validate: '验证', apply: '应用', saved: '配置已保存。', valid: '配置有效。',
     profiles: '节点配置档案', add: '添加节点', nodeId: '节点 ID', selected: '选中节点', none: '选择节点后可编辑配置。', remove: '删除',
     settings: '设置 JSON', invalidSettings: '设置必须是 JSON 对象。', enabled: '启用', packageId: '软件包 ID', packageVersion: '软件包版本',
     connections: '连接', consumer: '消费者', input: '输入', provider: '提供者', output: '输出', connectNodes: '连接', noPorts: '无端口',
@@ -72,8 +72,6 @@ const WINDOW_ICONS: Record<WindowId, string> = { library: '＋', config: '⚙', 
 export const IsosManager: React.FC<IsosManagerProps> = ({ lang, onLanguageChange }) => {
   const copy = COPY[lang];
   const [connected, setConnected] = useState(false);
-  const [tokenReady, setTokenReady] = useState(false);
-  const [tokenInput, setTokenInput] = useState('');
   const [graph, setGraph] = useState<IsosGraph>(emptyGraph);
   const graphRef = useRef(graph);
   const [savedGraph, setSavedGraph] = useState('');
@@ -149,9 +147,8 @@ export const IsosManager: React.FC<IsosManagerProps> = ({ lang, onLanguageChange
     finally { setBusy(false); }
   }, [dirty, copy.discard]);
   useEffect(() => {
-    if (!consumeIsosToken()) return;
-    if (ISOSUI_TARGET === 'local') void refresh();
-    else setTokenReady(true);
+    consumeIsosToken();
+    void refresh();
   }, []);
 
   const visualNodes = useMemo<Node<ProfileNodeData>[]>(() => graph.nodes.map((node, index) => ({
@@ -245,11 +242,7 @@ export const IsosManager: React.FC<IsosManagerProps> = ({ lang, onLanguageChange
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
     finally { setBusy(false); }
   };
-  const connect = (): void => {
-    if (tokenInput.trim()) setIsosToken(tokenInput);
-    setTokenInput('');
-    if (hasIsosToken()) void refresh();
-  };
+  const connect = (): void => { void refresh(); };
 
   const windowContent = (id: WindowId): React.ReactNode => {
     if (id === 'library') return <div className="isos-library">
@@ -314,6 +307,6 @@ export const IsosManager: React.FC<IsosManagerProps> = ({ lang, onLanguageChange
       {WINDOW_IDS.filter((id) => layout[id].mode === 'float').map(renderWindow)}
       {context && <div className="isos-manager__context" role="menu" style={{ left: Math.min(context.x, window.innerWidth - 190), top: Math.min(context.y - 42, window.innerHeight - 110) }}><button type="button" role="menuitem" onClick={() => { openWindow('library'); setContext(null); }}>{copy.contextAdd}</button><button type="button" role="menuitem" disabled={!selected.length} onClick={removeSelected}>{copy.contextRemove}</button></div>}
     </div>
-    {!connected && <div className="isos-manager__pair-scrim"><form className="isos-manager__pair" onSubmit={(event) => { event.preventDefault(); connect(); }}><h1>{copy.title}</h1><p>{copy.open}</p><label>{copy.token}<input type="password" autoComplete="off" value={tokenInput} onChange={(event) => setTokenInput(event.target.value)} /></label><button type="submit" disabled={!tokenInput.trim() && !tokenReady}>{copy.connect}</button></form></div>}
+    {!connected && <div className="isos-manager__pair-scrim"><div className="isos-manager__pair"><h1>{copy.title}</h1><p>{copy.open}</p><button type="button" onClick={connect} disabled={busy}>{copy.connect}</button></div></div>}
   </main></ReactFlowProvider>;
 };

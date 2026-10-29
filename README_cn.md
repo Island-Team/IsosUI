@@ -13,7 +13,7 @@ npm test
 npm run build
 ```
 
-`npm run build:local` 输出 `dist/local/`，使用同源 `/api/isos/v2`。`npm run build:hosted` 输出 `dist/hosted/`，资源路径以 `/isosui/` 开头，直接访问本机 `http://127.0.0.1:16000/api/isos/v2`。本机 IsOS 服务必须允许准确的托管来源。通过 `isos open` 打开编辑器，或输入临时令牌；令牌只保存在内存中，页面加载后会移除 URL 片段。
+`npm run build:local` 输出 `dist/local/`，使用同源 `/api/isos/v2`。`npm run build:hosted` 输出 `dist/hosted/`，资源路径以 `/isosui/` 开头，直接访问本机 `http://127.0.0.1:16000/api/isos/v2`。本机 IsOS 服务必须允许准确的托管来源。启动 IsOS 并打开编辑器后即可直接连接本机端口，无需令牌。旧版令牌片段在加载后会移除，令牌只保存在内存中。
 
 ## 工作台
 

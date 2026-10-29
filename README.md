@@ -13,7 +13,7 @@ npm test
 npm run build
 ```
 
-The development server serves the local build on port 3000. A production local build uses same-origin `/api/isos/v2`; to exercise it, serve `dist/local` from the IsOS process. The hosted build uses `http://127.0.0.1:16000/api/isos/v2` and requires the local IsOS server to allow the exact hosted origin. Open the editor through `isos open` or enter its temporary token. Tokens stay in memory and URL fragments are removed after loading.
+The development server serves the local build on port 3000. A production local build uses same-origin `/api/isos/v2`; to exercise it, serve `dist/local` from the IsOS process. The hosted build uses `http://127.0.0.1:16000/api/isos/v2` and requires the local IsOS server to allow the exact hosted origin. Start IsOS and open the editor to connect through the local port without a token. Legacy token fragments are consumed on load and held only in memory.
 
 ## Workbench
 
