@@ -15,10 +15,25 @@ if (theme !== 'light' && theme !== 'dark') {
   systemTheme.addEventListener('change', (event) => { rootElement.dataset.theme = event.matches ? 'dark' : 'light'; });
 }
 
+function detectLanguage(): Language {
+  if (window.location.pathname.startsWith('/cn/')) return 'cn';
+  if (window.location.pathname.startsWith('/en/')) return 'en';
+  return navigator.language.toLowerCase().startsWith('zh') ? 'cn' : 'en';
+}
+
+function applyDocumentLanguage(lang: Language): void {
+  rootElement.lang = lang === 'cn' ? 'zh-CN' : 'en';
+  document.title = lang === 'cn' ? 'IsOS 配置' : 'IsOS Configuration';
+}
+
+const initialLanguage = detectLanguage();
+applyDocumentLanguage(initialLanguage);
+
 function App(): React.ReactElement {
-  const [lang, setLang] = useState<Language>(() => window.location.pathname.startsWith('/cn/') ? 'cn' : window.location.pathname.startsWith('/en/') ? 'en' : navigator.language.toLowerCase().startsWith('zh') ? 'cn' : 'en');
+  const [lang, setLang] = useState<Language>(initialLanguage);
   const changeLanguage = (value: Language): void => {
     window.history.replaceState(window.history.state, '', `/${value}/isos`);
+    applyDocumentLanguage(value);
     setLang(value);
   };
   return <IsosManager lang={lang} onLanguageChange={changeLanguage} />;
