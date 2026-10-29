@@ -46,3 +46,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ISOSUI_TAG: ${{ inputs.tag }}
         run: gh release create "$ISOSUI_TAG" release/* --verify-tag --generate-notes
+      - name: Notify Island-web of the hosted release
+        env:
+          GH_TOKEN: ${{ secrets.ISLAND_WEB_DISPATCH_TOKEN }}
+          ISOSUI_TAG: ${{ inputs.tag }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo 'Set ISLAND_WEB_DISPATCH_TOKEN to a token with Island-web Contents: write permission' >&2
+            exit 1
+          fi
+          gh api repos/Island-Team/Island-web/dispatches --method POST \
+            -f event_type=isosui-release \
+            -f "client_payload[tag]=$ISOSUI_TAG" \
+            -f "client_payload[source_commit]=$(git rev-parse HEAD)"
