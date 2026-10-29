@@ -3,6 +3,7 @@ const BASE = ISOSUI_TARGET === 'hosted' ? 'http://127.0.0.1:16000/api/isos/v2' :
 let token = '';
 
 export interface IsosProfilePort { name: string; type: string; required?: boolean; contract?: string }
+export interface IsosSettingField { path: string; type: 'string' | 'absolute_path' | 'integer' | 'number' | 'boolean' | 'enum'; label?: string; description?: string; required?: boolean; default?: unknown; min?: number; max?: number; options?: string[]; read_only?: boolean }
 export interface IsosProfile {
   id: string;
   version: string;
@@ -11,6 +12,7 @@ export interface IsosProfile {
   inputs?: IsosProfilePort[];
   outputs?: IsosProfilePort[];
   defaults?: Record<string, unknown>;
+  settings_fields?: IsosSettingField[];
 }
 export interface IsosNode {
   id: string;
