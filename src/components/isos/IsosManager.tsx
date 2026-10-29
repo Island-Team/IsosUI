@@ -4,7 +4,7 @@ import 'reactflow/dist/style.css';
 import { CustomSelect } from '@/components/CustomSelect/CustomSelect';
 import { NodeConfiguration } from './NodeConfiguration';
 import { WorkbenchWindow } from './WorkbenchWindow';
-import { editGraphNode } from './graph-edits';
+import { createGraphNode, editGraphNode } from './graph-edits';
 import { defaultLayout, loadLayout, saveLayout, WINDOW_IDS, type WindowId, type WindowPlacement, type WorkbenchLayout } from './workbench-layout';
 import {
   applyIsosGraph, consumeIsosToken, getIsosGraph, getIsosProfiles, getIsosVersion, hasIsosToken, setIsosToken, validateIsosGraph,
@@ -201,9 +201,7 @@ export const IsosManager: React.FC<IsosManagerProps> = ({ lang, onLanguageChange
     if (!slug.test(id) || graph.nodes.some((node) => node.id === id)) { setMessage(copy.duplicate); return; }
     const profile = kindOverride ? undefined : profileOverride || profiles.find((item) => item.id === newProfile);
     if (!profile && !kindOverride) return;
-    const role = profile?.id === 'eos.uds' ? undefined : profile?.id.startsWith('eos.') ? 'eos' : profile?.id.startsWith('egia.') ? 'egia' : undefined;
-    const kind = profile?.id === 'eos.uds' ? 'endpoint' : profile ? 'component' : kindOverride || 'service';
-    const node: IsosNode = { id, kind, ...(role ? { role } : {}), ...(profile ? { profile: { id: profile.id, version: profile.version } } : {}), enabled: false, owned: kind !== 'endpoint', settings: profile?.defaults || {}, ...(kind === 'service' || kind === 'backend' ? { launch: { command: [], timeout_ms: 30000 } } : {}) };
+    const node = createGraphNode(id, profile, kindOverride);
     commitGraph((current) => ({ ...current, nodes: [...current.nodes, node], layout: { ...current.layout, [id]: { x: 80 + current.nodes.length * 35, y: 90 + current.nodes.length * 35 } } }));
     setNewId(''); setSelected([id]); openWindow('config'); setMessage(''); setContext(null);
   };

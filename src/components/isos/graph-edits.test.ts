@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { IsosGraph } from '@/services/isos/config-manager';
-import { editGraphNode } from './graph-edits';
+import { createGraphNode, editGraphNode } from './graph-edits';
 import { getSetting, setSetting } from './NodeConfiguration';
 
 describe('graph settings edits', () => {
+  it('creates generic nodes without a built-in profile', () => {
+    expect(createGraphNode('worker', undefined, 'service')).toMatchObject({ id: 'worker', kind: 'service', enabled: false, settings: {}, launch: { command: [] } });
+    expect(createGraphNode('worker', undefined, 'service').profile).toBeUndefined();
+  });
   it('synchronizes EOS listeners and a sidecar when ports change', () => {
     const graph: IsosGraph = { schema_version: 2, name: 'default', edges: [], nodes: [
       { id: 'eos', kind: 'component', role: 'eos', settings: { host: '127.0.0.1', grpc_port: 16200, north_http_port: 16201 }, launch: { command: ['eosd'], ready_tcp: '127.0.0.1:16200' } },

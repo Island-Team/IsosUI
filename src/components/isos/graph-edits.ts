@@ -1,4 +1,11 @@
-import type { IsosGraph, IsosNode } from '@/services/isos/config-manager';
+import type { IsosGraph, IsosNode, IsosProfile } from '@/services/isos/config-manager';
+
+/** A generic library choice must never inherit the currently selected built-in profile. */
+export function createGraphNode(id: string, profile?: IsosProfile, genericKind?: 'service' | 'backend' | 'skill'): IsosNode {
+  const role = profile?.id === 'eos.uds' ? undefined : profile?.id.startsWith('eos.') ? 'eos' : profile?.id.startsWith('egia.') ? 'egia' : undefined;
+  const kind = profile?.id === 'eos.uds' ? 'endpoint' : profile ? 'component' : genericKind || 'service';
+  return { id, kind, ...(role ? { role } : {}), ...(profile ? { profile: { id: profile.id, version: profile.version } } : {}), enabled: false, owned: kind !== 'endpoint', settings: profile?.defaults || {}, ...(kind === 'service' || kind === 'backend' ? { launch: { command: [], timeout_ms: 30000 } } : {}) };
+}
 
 function listenerAddress(host: string, port: number): string {
   return `${host.includes(':') ? `[${host}]` : host}:${port}`;
