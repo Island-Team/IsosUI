@@ -61,6 +61,24 @@ export function requiredBackend(graph: NodeGraph): { id: string; version: string
   return null;
 }
 
+/** Change only the declared backend scene; keep all other graph settings and nodes intact. */
+export function graphWithBackendScene(graph: NodeGraph, id: string, version: string, scene: string): NodeGraph {
+  let matches = 0;
+  const cores = Object.fromEntries(Object.entries(graph.cores).map(([coreName, core]) => [coreName, {
+    ...core, layers: Object.fromEntries(Object.entries(core.layers).map(([layerName, layer]) => [layerName, {
+      ...layer, groups: Object.fromEntries(Object.entries(layer.groups).map(([groupName, group]) => [groupName, {
+        ...group, nodes: Object.fromEntries(Object.entries(group.nodes).map(([nodeName, node]) => {
+          if (node.node_type !== 'isos.process.backend@v1.0' || node.settings?.package !== id || node.settings?.version !== version) return [nodeName, node];
+          matches += 1;
+          return [nodeName, { ...node, settings: { ...node.settings, scene } }];
+        })),
+      }])),
+    }])),
+  }]));
+  if (matches !== 1) throw new Error(`Expected one ${id}@${version} backend node; found ${matches}.`);
+  return { ...graph, cores };
+}
+
 export function getNodeGraph(): Promise<NodeGraphDocument> { return request('/node-graph'); }
 export function getNodeTypes(): Promise<{ types: NodeTypeDefinition[] }> { return request('/node-types'); }
 export function getProcessStatus(): Promise<ProcessStatus> { return request('/process-status'); }
