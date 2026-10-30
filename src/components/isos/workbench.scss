@@ -1,16 +1,19 @@
+@use '../../styles/variables' as *;
+
 .isos-workbench { display: flex; flex-direction: column; height: 100vh; min-height: 520px; color: var(--text); background: var(--bg-secondary); }
 .isos-workbench__graph-view { flex: 1; min-height: 0; display: flex; }
 .isos-workbench__graph-view[hidden] { display: none; }
-.isos-workbench__nav { display: flex; align-items: center; gap: 18px; min-height: 58px; padding: 7px 16px; background: var(--bg-elevated); border-bottom: 1px solid var(--border); z-index: 10; }
+.isos-workbench__nav { display: flex; align-items: center; gap: $space-4; min-height: 64px; padding: $space-2 $space-5; background: var(--bg-elevated); border-bottom: 1px solid var(--border); z-index: 10; }
 .isos-workbench__nav strong { white-space: nowrap; font: 800 .92rem var(--font-display, sans-serif); letter-spacing: .08em; }
 .isos-workbench__nav strong span { color: var(--text-secondary); font-weight: 500; letter-spacing: 0; }
 .isos-workbench__nav > div { display: flex; align-items: center; gap: 4px; flex: 1; }
-.isos-workbench__nav button { min-height: 36px; padding: 4px 12px; border-radius: 6px; color: var(--text-secondary); }
+.isos-workbench__nav button { min-height: $control-height; padding: 6px $control-padding-inline; border-radius: 4px; color: var(--text-secondary); }
 .isos-workbench__nav button:hover, .isos-workbench__nav button.active { color: var(--text); background: var(--primary-subtle); }
 .isos-workbench__nav button.active { box-shadow: inset 0 -2px var(--primary); }
 .isos-workbench__shell { flex: 1; padding: clamp(24px, 5vw, 72px); }
 .isos-workbench__shell h1 { margin: 12px 0; }
-.isos-workbench__shell button, .isos-home button { min-height: 34px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-elevated); }
+.isos-workbench__shell button, .isos-home button { min-height: $control-height; padding: 6px $control-padding-inline; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-elevated); font: 600 .78rem/1.25 var(--font-mono, monospace); letter-spacing: .08em; text-transform: uppercase; }
+.isos-workbench button:focus-visible, .isos-home button:focus-visible, .isos-home select:focus-visible, .isos-home input:focus-visible, .isos-home__cards > li:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .isos-workbench__shell button:hover, .isos-home button:hover { border-color: var(--primary); }
 .isos-eyebrow { color: var(--primary); font-weight: 800; font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; }
 .isos-home { flex: 1; overflow: auto; width: min(1200px, 100%); margin: auto; padding: 28px 20px 48px; }
@@ -18,7 +21,7 @@
 .isos-home__heading h1 { margin: 6px 0; font-size: clamp(1.6rem, 3vw, 2.6rem); }
 .isos-home__heading p:not(.isos-eyebrow) { color: var(--text-secondary); }
 .isos-home__overview { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 28px 0 12px; }
-.isos-home__overview > div, .isos-home__columns > section, .isos-home__processes { padding: 16px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; }
+.isos-home__overview > div, .isos-home__columns > section, .isos-home__processes { padding: $space-4; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: $radius-md; }
 .isos-home__overview > div { display: flex; flex-direction: column; gap: 7px; }
 .isos-home__overview span { color: var(--text-secondary); font-size: .75rem; }
 .isos-home__overview code { overflow-wrap: anywhere; font-size: .8rem; }
@@ -32,13 +35,18 @@
 .isos-home h3 { margin: 0 0 8px; font-size: .9rem; }
 .isos-home__columns p, .isos-home__processes p { color: var(--text-secondary); }
 .isos-home__cards { list-style: none; padding: 0; }
-.isos-home__cards > li { display: flex; flex-direction: column; gap: 4px; padding: 12px; border: 1px solid var(--border); border-radius: 7px; }
+.isos-home__cards > li { position: relative; display: flex; flex-direction: column; gap: 4px; margin-bottom: $space-2; padding: $space-3; border: 1px solid var(--border); border-radius: $radius-sm; cursor: help; }
+.isos-home__cards > li:hover, .isos-home__cards > li:focus-visible { border-color: var(--primary); background: var(--primary-subtle); z-index: 2; }
+.isos-home__card-details { position: absolute; z-index: 3; top: calc(100% + 6px); left: 0; width: min(360px, 90vw); max-height: min(60vh, 360px); overflow: auto; padding: $space-3; border: 1px solid var(--primary); border-radius: $radius-sm; background: var(--bg-elevated); box-shadow: var(--shadow-lg); opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(-4px); transition: opacity $duration-fast ease, transform $duration-fast ease, visibility $duration-fast ease; }
+.isos-home__cards > li:hover .isos-home__card-details, .isos-home__cards > li:focus-within .isos-home__card-details { opacity: 1; visibility: visible; pointer-events: auto; transform: translateY(0); }
+.isos-home__card-details p { margin: 0 0 $space-2; overflow-wrap: anywhere; }
+.isos-home__card-details ul { margin: 0; padding-left: $space-4; }
 .isos-home__cards code { color: var(--text-secondary); }
 .isos-home__package-required { padding: 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-secondary); }
 .isos-home__package-required code { overflow-wrap: anywhere; }
 .isos-home__package-install { display: grid; gap: 8px; margin-top: 12px; }
 .isos-home__package-install label { font-size: .82rem; }
-.isos-home__package-install input { width: 100%; min-height: 34px; padding: 6px 9px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--bg-elevated); }
+.isos-home__package-install input { width: 100%; min-height: $control-height; padding: 6px 9px; border: 1px solid var(--border); border-radius: 4px; color: var(--text); background: var(--bg-elevated); }
 .isos-home__package-install > div { display: flex; flex-wrap: wrap; gap: 8px; }
 .isos-home__package-install button:first-child { border-color: var(--primary); }
 .isos-ready { color: var(--success); } .isos-attention { color: var(--warning); }
@@ -48,4 +56,5 @@
 .isos-home__processes > ul li span, .isos-home__processes > ul li small { color: var(--text-secondary); }
 .isos-home__logs { margin-top: 16px; }
 .isos-home__logs pre { min-height: 100px; max-height: 350px; padding: 12px; overflow: auto; color: var(--text); background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; white-space: pre-wrap; }
-@media (max-width: 720px) { .isos-workbench__nav { flex-wrap: wrap; } .isos-workbench__nav > div { order: 3; flex-basis: 100%; overflow-x: auto; } .isos-home__overview, .isos-home__columns { grid-template-columns: 1fr; } .isos-home__heading { align-items: flex-start; flex-direction: column; } .isos-home button, .isos-workbench__nav button { min-height: 44px; } }
+@media (pointer: coarse), (max-width: 576px) { .isos-home button, .isos-workbench__nav button, .isos-home__package-install input, .isos-home select { min-height: $touch-target; } }
+@media (max-width: 720px) { .isos-workbench__nav { flex-wrap: wrap; padding: $space-2 $space-3; } .isos-workbench__nav > div { order: 3; flex-basis: 100%; overflow-x: auto; } .isos-home__overview, .isos-home__columns { grid-template-columns: 1fr; } .isos-home__heading { align-items: flex-start; flex-direction: column; } }
