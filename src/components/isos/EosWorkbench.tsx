@@ -3,7 +3,7 @@ import { eosRequest, type EosControlReply, type EosDiscoveryNode } from '@/servi
 import { VisionPanel } from './VisionPanel';
 import { getNodeGraph, getProcessStatus, type NodeGraphDocument, type NodeInstance, type ProcessStatus } from '@/services/isos/node-graph';
 import type { Language } from '@/types';
-import { activeGraphIsCurrent, defaultMovement, discoveredHardware, eosControlNodes, eosGraphNodes, hardwareKind, monitorBadge, movementTypes, movementValid, type AdapterStatus, type EosGraphNode, type Movement, type MovementType } from './eos-control-model';
+import { activeGraphIsCurrent, defaultMovement, discoveredHardware, eosControlNodes, eosGraphNodes, hardwareKind, monitorBadge, movementTypes, movementValid, visionRuntimeState, type AdapterStatus, type EosGraphNode, type Movement, type MovementType } from './eos-control-model';
 import './eos-workbench.scss';
 
 interface Props { lang: Language; onOpenGraph: () => void; graphDirty: boolean }
@@ -164,7 +164,7 @@ export function EosWorkbench({ lang, onOpenGraph, graphDirty }: Props): React.Re
   }, []);
   useEffect(() => { void refresh(); const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refresh(); }, 5000); return () => window.clearInterval(timer); }, [refresh]);
   const active = Boolean(graphDoc && activeGraphIsCurrent(graphDoc.revision, status?.active_revision) && status?.state === 'running' && !graphDirty);
-  const visionActive = Boolean(graphDoc && activeGraphIsCurrent(graphDoc.revision, status?.active_revision) && status?.state === 'running');
+  const { active: visionActive, graph: visionGraph } = visionRuntimeState(graphDoc, status);
   const nodes = useMemo(() => graphDoc ? eosGraphNodes(graphDoc.graph) : [], [graphDoc]);
   const controls = useMemo(() => graphDoc ? eosControlNodes(graphDoc.graph) : [], [graphDoc]);
   const discoveredPaths = discovery.map((entry) => entry.path).join('|');
@@ -214,6 +214,6 @@ export function EosWorkbench({ lang, onOpenGraph, graphDirty }: Props): React.Re
       const kind = hardwareKind(entry.node.node_type); const reading = readings[entry.path]; const badge = monitorBadge(reading, clock);
       return <article className={`eos-monitor__card eos-monitor__card--${kind}`} key={entry.path}><header><h3>{entry.node.label || entry.node.id}</h3><span className={`eos-monitor__${badge}`}>{copy[badge]}</span></header><p><code>{kind}</code> · {copy.status}: {reading?.status?.state || '—'} · {copy.health}: {reading?.health?.state || '—'}</p>{reading?.status?.active_command_id && <p>{copy.command}: <code>{reading.status.active_command_id}</code></p>}{reading?.health?.message && <p>{reading.health.message}</p>}{reading?.error && <p role="alert">{reading.error}</p>}{kind !== 'camera' && <><h4>{copy.observation}</h4><Observation kind={kind || ''} value={reading?.observation} />{reading?.observationAt && <p>{copy.update}: {new Date(reading.observationAt).toLocaleTimeString()}</p>}</>}</article>;
     })}</div> : <p>{copy.noHardware}</p>}</section>
-    <VisionPanel lang={lang} graph={graphDoc?.graph || null} active={visionActive} />
+    <VisionPanel lang={lang} graph={visionGraph} active={visionActive} />
   </main>;
 }

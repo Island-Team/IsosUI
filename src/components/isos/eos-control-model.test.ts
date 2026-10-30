@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { decodeRgbFrame, type EosCameraFrame } from '../../services/eos/control';
-import { activeGraphIsCurrent, defaultMovement, discoveredHardware, eosControlNodes, hardwareKind, monitorBadge, movementValid } from './eos-control-model';
+import { activeGraphIsCurrent, defaultMovement, discoveredHardware, eosControlNodes, hardwareKind, monitorBadge, movementValid, visionRuntimeState } from './eos-control-model';
 import type { NodeGraph, NodeInstance } from '../../services/isos/node-graph';
 
 const base: NodeInstance = { id: 'base_1', node_type: 'eos.hardware.base@v1.0', label: 'Base', description: '', movement: { modes: ['body_velocity'], limits: { max_linear_m_s: 1, max_angular_rad_s: 0.5, max_velocity_lease_ms: 300 } } };
@@ -21,6 +21,13 @@ describe('EOS workbench admission model', () => {
       expect(movementValid({ ...movement, x_m_s: 1.1 }, base)).toBe(false);
       expect(movementValid({ ...movement, valid_for_ms: 400 }, base)).toBe(false);
     }
+  });
+  it('allows read-only Vision on an older active graph without using a stale default edge', () => {
+    const document = { revision: 'new', graph };
+    const status = { schema_version: '2.0.0' as const, active_revision: 'old', state: 'running' as const, processes: [] };
+    expect(visionRuntimeState(document, status)).toEqual({ active: true, graph: null });
+    expect(visionRuntimeState(document, { ...status, active_revision: 'new' })).toEqual({ active: true, graph });
+    expect(visionRuntimeState(document, { ...status, active_revision: null, state: 'stopped' })).toEqual({ active: false, graph: null });
   });
   it('bounds and decodes an RGB frame with row stride', () => {
     const frame: EosCameraFrame = { meta: {}, width_px: 1, height_px: 2, stride_bytes: 4, rgb8_base64: btoa(String.fromCharCode(1, 2, 3, 0, 4, 5, 6, 0)), depth: null };
