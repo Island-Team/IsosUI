@@ -55,3 +55,11 @@
 .eos-monitor__canvas canvas { display: block; max-width: 100%; max-height: 480px; image-rendering: pixelated; }
 @media (max-width: 680px) { .eos-workbench__header { flex-direction: column; } }
 @media (pointer: coarse) { .eos-workbench button, .eos-control__field input, .eos-control__field select { min-height: $touch-target; } }
+.eos-workbench__section-nav { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--bg-elevated); }
+.eos-workbench__section-nav a { min-height: 36px; display: inline-flex; align-items: center; padding: 4px 10px; border: 1px solid var(--border); border-radius: 5px; color: var(--text); text-decoration: none; }
+.eos-workbench__section-nav a:hover, .eos-workbench__section-nav a:focus-visible { border-color: var(--primary); }
+.eos-vision__controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.eos-vision__controls label { min-width: min(320px, 100%); flex: 1; }
+.eos-vision__controls select { width: 100%; }
+.eos-vision__image { display: grid; place-items: center; min-height: 180px; margin-top: 10px; border: 1px solid var(--border); border-radius: 6px; background: #111827; color: #e5e7eb; overflow: hidden; }
+.eos-vision__image img { display: block; max-width: 100%; max-height: min(65vh, 700px); object-fit: contain; }

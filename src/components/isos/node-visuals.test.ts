@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { nodeVisualStyle, portFamily, nodeSummary } from './node-visuals';
+import { interfaceVisual, nodeVisualStyle, portFamily, nodeSummary } from './node-visuals';
 import type { NodeTypeDefinition } from '@/services/isos/node-graph';
 
 const definition = (core: string, layer: string, group: string): NodeTypeDefinition => ({ id: `${core}.${layer}.${group}@v1.0`, core, layer, group, kind: 'software', lifecycle: 'internal', capabilities: [], settings: [], inputs: [], outputs: [] });
 describe('node visual semantics', () => {
+  it('renders rate, community and data class as separate channels', () => {
+    const slow = interfaceVisual({ name: 'preview', data_type: 'vision_frame', required: false, expected_rate_hz: 0.1, transport: 'websocket', data_class: 'camera' });
+    const fast = interfaceVisual({ name: 'preview', data_type: 'vision_frame', required: false, expected_rate_hz: 60, transport: 'websocket', data_class: 'camera' });
+    expect(slow.style['--wire']).not.toBe(fast.style['--wire']);
+    expect(slow.className).toContain('node-graph-edge-transport--websocket');
+    expect(slow.className).toContain('node-graph-edge--camera');
+    expect(interfaceVisual().style['--wire']).toBe('#64748b');
+  });
   it('keeps port colors tied to typed payloads', () => {
     expect(portFamily('CameraFrame')).toBe('camera');
     expect(portFamily('BaseMovementCommand')).toBe('movement');

@@ -8,6 +8,7 @@ import '@/styles/global.scss';
 
 const NodeGraphManager = lazy(async () => ({ default: (await import('@/components/isos/NodeGraphManager')).NodeGraphManager }));
 const EosWorkbench = lazy(async () => ({ default: (await import('@/components/isos/EosWorkbench')).EosWorkbench }));
+const EgiaWorkbench = lazy(async () => ({ default: (await import('@/components/isos/EgiaWorkbench')).EgiaWorkbench }));
 
 const theme = localStorage.getItem('island-theme');
 const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
@@ -55,12 +56,12 @@ function App(): React.ReactElement {
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
-  const labels = lang === 'cn' ? { home: '首页', graph: '节点图', eos: 'EOS', egia: 'EGIA', language: '语言', shell: '此运行面板将在对应核心可用时提供。节点配置请使用节点图页面。' } : { home: 'Home', graph: 'Graph', eos: 'EOS', egia: 'EGIA', language: 'Language', shell: 'This runtime panel will be available with its core. Configure nodes on the Graph page.' };
+  const labels = lang === 'cn' ? { home: '首页', graph: '节点图', eos: 'EOS', egia: 'EGIA', language: '语言' } : { home: 'Home', graph: 'Graph', eos: 'EOS', egia: 'EGIA', language: 'Language' };
   return <div className="isos-workbench"><nav className="isos-workbench__nav" aria-label="IsOS"><a className="isos-workbench__brand" href="https://www.os-island.com" aria-label="Island website">ISOS<span> / Aether</span></a><div role="group" aria-label="Pages">{(['graph', 'eos', 'egia'] as Page[]).map((name) => <button type="button" key={name} className={page === name ? 'active' : ''} aria-current={page === name ? 'page' : undefined} onClick={() => openPage(name)}>{labels[name]}</button>)}</div><button type="button" onClick={() => changeLanguage(lang === 'en' ? 'cn' : 'en')} aria-label={labels.language}>{lang === 'en' ? '中文' : 'EN'}</button></nav>
     {page === 'home' && <IsosHome lang={lang} onOpenGraph={() => openPage('graph')} graphDirty={graphDirty} />}
-    <div className="isos-workbench__graph-view" hidden={page !== 'graph'}><Suspense fallback={<p role="status">{lang === 'cn' ? '正在加载节点图…' : 'Loading node graph…'}</p>}><NodeGraphManager lang={lang} onDirtyChange={setGraphDirty} /></Suspense></div>
+    <div className="isos-workbench__graph-view" hidden={page !== 'graph'}><Suspense fallback={<p role="status">{lang === 'cn' ? '正在加载节点图…' : 'Loading node graph…'}</p>}><NodeGraphManager lang={lang} visible={page === 'graph'} onDirtyChange={setGraphDirty} /></Suspense></div>
     {page === 'eos' && <Suspense fallback={<p role="status">{lang === 'cn' ? '正在加载 EOS…' : 'Loading EOS…'}</p>}><EosWorkbench lang={lang} onOpenGraph={() => openPage('graph')} graphDirty={graphDirty} /></Suspense>}
-    {page === 'egia' && <main className="isos-workbench__shell"><p className="isos-eyebrow">EGIA · Aether v2</p><h1>{labels.egia}</h1><p>{labels.shell}</p><button type="button" onClick={() => openPage('graph')}>{labels.graph}</button></main>}
+    {page === 'egia' && <Suspense fallback={<p role="status">{lang === 'cn' ? '正在加载 EGIA…' : 'Loading EGIA…'}</p>}><EgiaWorkbench lang={lang} onOpenGraph={() => openPage('graph')} /></Suspense>}
   </div>;
 }
 

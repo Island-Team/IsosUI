@@ -1,5 +1,5 @@
 import type { EosDiscoveryNode } from '@/services/eos/control';
-import type { NodeGraph, NodeInstance } from '@/services/isos/node-graph';
+import type { NodeGraph, NodeGraphDocument, NodeInstance, ProcessStatus } from '@/services/isos/node-graph';
 
 export interface EosGraphNode { path: string; node: NodeInstance }
 
@@ -21,6 +21,12 @@ export function discoveredHardware(graph: NodeGraph, discovery: EosDiscoveryNode
 
 export function activeGraphIsCurrent(revision: string, active: string | null | undefined): boolean {
   return Boolean(revision && active && revision === active);
+}
+
+/** Read-only Vision follows the running EOS revision, even if the saved graph has changed. */
+export function visionRuntimeState(document: NodeGraphDocument | null, status: ProcessStatus | null): { active: boolean; graph: NodeGraph | null } {
+  const active = Boolean(status?.active_revision && status.state !== 'stopped');
+  return { active, graph: active && document && activeGraphIsCurrent(document.revision, status?.active_revision) ? document.graph : null };
 }
 
 export type HardwareKind = 'camera' | 'base' | 'manipulator';
