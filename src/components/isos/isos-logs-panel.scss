@@ -1,7 +1,7 @@
 .node-graph-logs { display: flex; flex-direction: column; flex: 0 0 min(28vh, 300px); min-height: 140px; border-top: 1px solid var(--border); background: var(--bg-elevated); }
-.node-graph-logs header { display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 4px 10px; }
+.node-graph-logs header { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-height: 42px; padding: 4px 10px; }
 .node-graph-logs header > strong { margin-right: auto; }
 .node-graph-logs label { display: inline-flex; flex-direction: row; align-items: center; gap: 5px; }
-.node-graph-logs select { width: 130px; }
+.node-graph-logs select { width: min(150px, 24vw); }
 .node-graph-logs input[type='checkbox'] { width: 18px; min-height: 18px; }
 .node-graph-logs pre { flex: 1; min-height: 0; margin: 0; padding: 10px; overflow: auto; border-top: 1px solid var(--border); font-size: .73rem; white-space: pre-wrap; }
