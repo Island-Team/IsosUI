@@ -31,9 +31,7 @@
 .node-graph-legend h3 { flex-basis: 100%; margin: 0 0 4px; }
 .node-graph-legend span { display: inline-flex; align-items: center; gap: 5px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: .66rem; }
 .node-graph-legend i { display: block; width: 9px; height: 9px; border-radius: 50%; background: var(--port); }
-.node-graph-legend .node-graph-port--movement i, .node-graph-legend .node-graph-port--request i { border-radius: 1px; transform: rotate(45deg); }
 .node-graph-interface-legend { display: grid; gap: 5px; padding: 9px; border: 1px solid var(--border); border-radius: 7px; font-size: .7rem; }
-.node-graph-interface-legend__rate { padding-left: 8px; border-left: 8px solid; border-image: linear-gradient(#9333ea, #ef4444) 1; }
 .node-graph-set-library { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--border); }
 .node-graph-set-library > p { margin: 0; color: var(--text-secondary); font-size: .75rem; }
 .node-graph-set-library .node-graph-set-replace { flex-direction: row; align-items: flex-start; }
@@ -93,39 +91,16 @@
 .node-graph-card__port--output { text-align: right; }
 .node-graph-card__summary { margin: 8px 0 0; padding: 6px 8px; list-style: none; border-radius: 5px; background: var(--bg-secondary); color: var(--text-secondary); font: .66rem/1.5 var(--font-mono, monospace); overflow-wrap: anywhere; }
 .node-graph-card__port { --port: #64748b; }
-.node-graph-port--camera { --port: #06b6d4; }
-.node-graph-port--observation { --port: #14b8a6; }
-.node-graph-port--movement { --port: #f59e0b; }
-.node-graph-port--request { --port: #a855f7; }
-.node-graph-port--outcome { --port: #3b82f6; }
-.node-graph-port--health { --port: #84cc16; }
-.node-graph-port--status { --port: #94a3b8; }
-.node-graph-port--context { --port: #d946ef; }
-.node-graph-port--plan { --port: #f43f5e; }
-.node-graph-port--image { --port: #06b6d4; }
-.node-graph-port--command { --port: #f59e0b; }
-.node-graph-port--event { --port: #a855f7; }
-.node-graph-port--state { --port: #94a3b8; }
-.node-graph-port--opaque { --port: #64748b; }
 .node-graph-card .react-flow__handle { width: 12px; height: 12px; background: var(--port); border: 2px solid var(--bg-elevated); }
-.node-graph-port--movement .react-flow__handle, .node-graph-port--request .react-flow__handle { border-radius: 2px; transform: translateY(-50%) rotate(45deg); }
-.node-graph-port--outcome .react-flow__handle, .node-graph-port--health .react-flow__handle, .node-graph-port--status .react-flow__handle { border-radius: 2px; }
-.node-graph-port--context .react-flow__handle, .node-graph-port--plan .react-flow__handle { background: var(--bg-elevated); border-color: var(--port); }
-.node-graph-port--command .react-flow__handle { border-radius: 2px; transform: translateY(-50%) rotate(45deg); }
-.node-graph-port--event .react-flow__handle, .node-graph-port--state .react-flow__handle { border-radius: 2px; }
-.node-graph-port--opaque .react-flow__handle { background: var(--bg-elevated); border-color: var(--port); }
-.react-flow__edge[class*='node-graph-edge--'] .react-flow__edge-path { stroke: var(--wire); stroke-width: 2.5; }
-.react-flow__edge.node-graph-edge--movement .react-flow__edge-path, .react-flow__edge.node-graph-edge--request .react-flow__edge-path { stroke-dasharray: 8 5; }
-.react-flow__edge.node-graph-edge--health .react-flow__edge-path, .react-flow__edge.node-graph-edge--status .react-flow__edge-path { stroke-dasharray: 2 5; }
-.react-flow__edge.node-graph-edge--camera .react-flow__edge-path { stroke-dasharray: 11 2; }
-.react-flow__edge.node-graph-edge--image .react-flow__edge-path { stroke-dasharray: none; }
-.react-flow__edge.node-graph-edge--observation .react-flow__edge-path { stroke-dasharray: 10 3; }
-.react-flow__edge.node-graph-edge--command .react-flow__edge-path { stroke-dasharray: 7 4; }
-.react-flow__edge.node-graph-edge--event .react-flow__edge-path { stroke-dasharray: 4 4; }
-.react-flow__edge.node-graph-edge--state .react-flow__edge-path { stroke-dasharray: 2 5; }
-.react-flow__edge.node-graph-edge--opaque .react-flow__edge-path { stroke-dasharray: 1 7; }
-.react-flow__edge.node-graph-edge-transport--unix_socket .react-flow__edge-path, .react-flow__edge.node-graph-edge-transport--ros2 .react-flow__edge-path { stroke-width: 3.5; }
-.react-flow__edge.node-graph-edge-transport--websocket .react-flow__edge-path { stroke-width: 4; }
+.node-graph-port-transport--unix_socket .react-flow__handle { border-radius: 2px; }
+.node-graph-port-transport--websocket .react-flow__handle { border-radius: 2px; transform: translateY(-50%) rotate(45deg); }
+.node-graph-port-transport--ros2 .react-flow__handle { border-radius: 0; clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); }
+.react-flow__edge[class*='node-graph-edge-frequency--'] .react-flow__edge-path { stroke: var(--wire); stroke-width: 2.5; }
+.react-flow__edge.node-graph-edge-frequency--unknown .react-flow__edge-path { stroke-dasharray: 6 5; }
+.react-flow__edge.node-graph-edge-frequency--low .react-flow__edge-path { stroke-dasharray: 1 7; }
+.react-flow__edge.node-graph-edge-frequency--medium .react-flow__edge-path { stroke-dasharray: 3 5; }
+.react-flow__edge.node-graph-edge-frequency--high .react-flow__edge-path { stroke-dasharray: 10 3; }
+.react-flow__edge.node-graph-edge-frequency--solid .react-flow__edge-path { stroke-dasharray: none; }
 .react-flow__edge.animated .react-flow__edge-path { animation: none; }
 .node-graph-card--mirrored .node-graph-card__ports { flex-direction: row-reverse; }
 .node-graph-card--mirrored .node-graph-card__port { text-align: right; }

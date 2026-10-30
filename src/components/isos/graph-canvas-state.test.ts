@@ -19,6 +19,8 @@ describe('graph canvas state', () => {
     expect(graphMirrorKey(graph('alpha'))).toBe('isosui-v2-layout:alpha:mirrors');
     expect(parseNodeMirrors('{broken')).toEqual({});
     expect(parseNodeMirrors('{"a":true,"b":false,"c":"yes"}')).toEqual({ a: true });
+    expect(parseNodeMirrors('{"cores/eos/layers/hardware/groups/camera/nodes/front":true}')).toEqual({ 'eos/hardware/camera/front': true });
+    expect(parseNodePositions('{"cores/eos/layers/hardware/groups/camera/nodes/front":{"x":2,"y":3}}')).toEqual({ 'eos/hardware/camera/front': { x: 2, y: 3 } });
   });
 
   it('adds and removes nodes from rectangle selection without changing positions', () => {

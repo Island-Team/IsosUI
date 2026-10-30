@@ -7,8 +7,8 @@ const base: NodeInstance = { id: 'base_1', node_type: 'eos.hardware.base@v1.0', 
 const arm: NodeInstance = { id: 'arm_1', node_type: 'eos.hardware.manipulator@v1.0', label: '', description: '', movement: { modes: ['joint_positions'], limits: {} } };
 describe('control graph links', () => {
   it('changes typed observation input and mode when the actuator changes', () => {
-    const basePath = 'cores/eos/layers/hardware/groups/base/nodes/base_1';
-    const armPath = 'cores/eos/layers/hardware/groups/manipulator/nodes/arm_1';
+    const basePath = 'eos/hardware/base/base_1';
+    const armPath = 'eos/hardware/manipulator/arm_1';
     expect(withControlTarget(primitive, basePath, base).inputs).toEqual({ status: { node: DISPATCHER_PATH, output: 'status' }, base_observation: { node: basePath, output: 'observation' } });
     const update = withControlTarget(primitive, armPath, arm);
     expect(update.settings?.movement_type).toBe('joint_positions');
