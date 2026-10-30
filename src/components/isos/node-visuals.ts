@@ -33,6 +33,9 @@ export function portFamily(dataType: string): PortFamily {
 
 export function nodeSummary(definition: NodeTypeDefinition | undefined, node: NodeInstance): string[] {
   if (!definition) return [];
+  if (definition.id === 'eos.process.mujoco@v1.0') {
+    return ['scene', 'socket'].flatMap((key) => node.settings?.[key] === undefined ? [] : [`${key}: ${String(node.settings[key])}`]).slice(0, 3);
+  }
   if (definition.id === 'eos.process.backend@v1.0') {
     return ['package', 'version', 'scene', 'socket'].flatMap((key) => node.settings?.[key] === undefined ? [] : [`${key}: ${String(node.settings[key])}`]).slice(0, 3);
   }

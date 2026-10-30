@@ -21,6 +21,7 @@ describe('node visual semantics', () => {
   });
   it('only shows relevant configuration, not payloads', () => {
     expect(nodeSummary({ ...definition('eos', 'process', 'backend'), lifecycle: 'process' }, { id: 'sim', node_type: 'eos.process.backend@v1.0', label: 'sim', description: '', settings: { package: 'island/mujoco-sim', scene: 'default', payload: 'hidden' } })).toEqual(['package: island/mujoco-sim', 'scene: default']);
+    expect(nodeSummary({ ...definition('eos', 'process', 'mujoco'), lifecycle: 'process' }, { id: 'sim', node_type: 'eos.process.mujoco@v1.0', label: 'sim', description: '', package: { id: 'island/mujoco-sim', version: '2.0.0' }, settings: { scene: 'default', socket: '/tmp/mujoco.sock', payload: 'hidden' } })).toEqual(['scene: default', 'socket: /tmp/mujoco.sock']);
   });
   it('summarizes hardware adapter settings and modes', () => {
     const camera = { ...definition('eos', 'hardware', 'camera'), kind: 'camera' as const, lifecycle: 'adapter' as const };
