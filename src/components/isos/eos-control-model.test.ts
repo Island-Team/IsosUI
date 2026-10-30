@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { decodeRgbFrame, type EosCameraFrame } from '../../services/eos/control';
-import { activeGraphIsCurrent, defaultMovement, discoveredHardware, eosControlNodes, movementValid } from './eos-control-model';
+import { activeGraphIsCurrent, defaultMovement, discoveredHardware, eosControlNodes, hardwareKind, monitorBadge, movementValid } from './eos-control-model';
 import type { NodeGraph, NodeInstance } from '../../services/isos/node-graph';
 
 const base: NodeInstance = { id: 'base_1', node_type: 'eos.hardware.base@v1.0', label: 'Base', description: '', movement: { modes: ['body_velocity'], limits: { max_linear_m_s: 1, max_angular_rad_s: 0.5, max_velocity_lease_ms: 300 } } };
@@ -27,5 +27,19 @@ describe('EOS workbench admission model', () => {
     expect([...decodeRgbFrame(frame)]).toEqual([1, 2, 3, 255, 4, 5, 6, 255]);
     expect(() => decodeRgbFrame({ ...frame, width_px: 4096 })).toThrow('display limits');
     expect(() => decodeRgbFrame({ ...frame, rgb8_base64: btoa('short') })).toThrow('length');
+  });
+  it('uses the hardware family and adapter state for monitor labels', () => {
+    expect(hardwareKind('eos.hardware.base@v1.0')).toBe('base');
+    expect(hardwareKind('eos.hardware.manipulator@v1.0')).toBe('manipulator');
+    expect(hardwareKind('eos.hardware.camera@v1.0')).toBe('camera');
+    expect(hardwareKind('eos.control.manual@v1.0')).toBeNull();
+    expect(monitorBadge({ status: { state: 'ready' }, statusAt: 1000, health: { state: 'healthy' }, healthAt: 1000 }, 1200)).toBe('live');
+    expect(monitorBadge({ status: { state: 'ready' }, statusAt: 1000, health: { state: 'degraded' }, healthAt: 1000 }, 1200)).toBe('degraded');
+    expect(monitorBadge({ status: { state: 'ready' }, statusAt: 1000, health: { state: 'unavailable' }, healthAt: 1000 }, 1200)).toBe('fault');
+    expect(monitorBadge({ status: { state: 'ready' }, statusAt: 1000, health: { state: 'healthy' }, healthAt: 1000 }, 7001)).toBe('stale');
+    expect(monitorBadge({ status: { state: 'ready' }, statusAt: 1000 }, 1200)).toBe('stale');
+    expect(monitorBadge({ status: { state: 'stopped' }, statusAt: 1000 }, 1200)).toBe('stopped');
+    expect(monitorBadge({ status: { state: 'faulted' }, statusAt: 1000 }, 1200)).toBe('fault');
+    expect(monitorBadge({ status: { state: 'stopped' }, statusAt: 1000 }, 7001)).toBe('stale');
   });
 });
