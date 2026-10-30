@@ -9,11 +9,12 @@ IsosUI 是公开的 IsOS 配置图编辑器源码，采用 Apache-2.0 许可证�
 ```bash
 npm ci
 npm run dev
+npm start
 npm test
 npm run build
 ```
 
-`npm run build:local` 输出 `dist/local/`，使用同源 `/api/isos/v2`。设置 `ISOSUI_REPO_PATH` 或 `ISOS_WEB_DIST` 后，IsOS 会通过自身的环回服务提供本地构建。`npm run build:hosted` 输出 `dist/hosted/`，资源路径以 `/isosui/` 开头，直接访问本机 `http://127.0.0.1:16000/api/isos/v2`。本机 IsOS 服务必须允许准确的托管来源。编辑器通过地址和端口连接，无需 URL 令牌或 Authorization 请求头。
+`npm run dev` 启动开发前端，`npm start` 启动生产模式前端。两者默认监听 `127.0.0.1:16001`，直接请求 `http://127.0.0.1:16000/api/isos/v2`。IsOS 启动本地工作台时监管 `npm start`；Ctrl+C 会一并停止前端和 IsOS 服务。可通过 `ISOSUI_PORT` 和 `ISOSUI_API_ORIGIN=http://127.0.0.1:<API 端口>` 指定其他环回端口。Webpack 编译时写入 API 地址，并仅接受 HTTP 环回地址。IsOS 必须允许前端的准确来源进行跨域请求。编辑器无需 URL 令牌或 Authorization 请求头。
 
 ## 工作台
 
@@ -27,6 +28,8 @@ IsOS MuJoCo 后端检查器提供“显示 MuJoCo 窗口”设置，在该后端
 
 节点图只管理配置，不承载实时相机或运动数据。IsOS 在重启受管进程时启用已保存的修订版本。编辑器不会创建第二条执行器命令路径。
 
-两个构建目录都包含 `index.html`、`assets/`、`IslandTeam.png` 和 `manifest.json`。清单包含 UI 版本、源码提交、构建目标和 IsOS API v2 版本。IsOS 在 `/en/isos` 与 `/cn/isos` 提供本地页面；Island-web 在对应路径提供托管 HTML，并把资源放在 `/isosui/`。
+两个构建目录都包含 `index.html`、`assets/`、`IslandTeam.png` 和 `manifest.json`。清单包含 UI 版本、源码提交、构建目标和 IsOS API v2 版本。npm 服务在本机提供 `/en/isos` 与 `/cn/isos`；Island-web 在对应路径提供托管 HTML，并把资源放在 `/isosui/`。
 
 手动发布工作流从现有的 `v<package version>` 标签构建两个压缩包与 `SHA256SUMS`。普通开发和固定提交构建不需要发布版本。
+
+独立前端已在 Node.js 22 环境下运行 `npm test`、`npm run build` 与 `npm start`；`127.0.0.1:16001/en/isos` 返回 HTTP 200，本地构建包含 `127.0.0.1:16000` 的 API 地址。完整输出保存在本地 `logs/test/20261030-npm-frontend/`。

@@ -1,5 +1,5 @@
 /** Versioned configuration API hosted by the local IsOS process. */
-const BASE = ISOSUI_TARGET === 'hosted' ? 'http://127.0.0.1:16000/api/isos/v2' : '/api/isos/v2';
+const BASE = `${ISOSUI_API_ORIGIN}/api/isos/v2`;
 
 export interface IsosProfilePort { name: string; type: string; required?: boolean; contract?: string }
 export interface IsosSettingField { path: string; type: 'string' | 'absolute_path' | 'integer' | 'number' | 'boolean' | 'enum'; label?: string; description?: string; required?: boolean; default?: unknown; min?: number; max?: number; options?: string[]; read_only?: boolean }
@@ -55,13 +55,12 @@ export async function request<T>(path: string, method = 'GET', body?: unknown): 
       headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       // Chrome uses this hint for HTTPS-to-HTTP loopback permission and address verification.
-      ...(ISOSUI_TARGET === 'hosted' ? { mode: 'cors' as const, targetAddressSpace: 'loopback' as const } : {}),
+      mode: 'cors',
+      targetAddressSpace: 'loopback',
     };
     response = await fetch(`${BASE}${path}`, options);
   } catch {
-    throw new Error(ISOSUI_TARGET === 'hosted'
-      ? 'Cannot reach local IsOS at 127.0.0.1:16000. Start IsOS and allow browser access to the local network.'
-      : 'Cannot reach the local IsOS API. Start IsOS and try again.');
+    throw new Error(`Cannot reach IsOS at ${ISOSUI_API_ORIGIN}. Start IsOS and check the service address and port.`);
   }
   let envelope: Envelope<T> | null = null;
   try { envelope = await response.json() as Envelope<T>; } catch { /* HTTP failures can be plain text. */ }
