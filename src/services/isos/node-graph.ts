@@ -16,7 +16,7 @@ export interface NodeTypeDefinition {
 }
 export interface PortDefinition { name: string; data_type: string; required: boolean; description?: string; expected_rate_hz?: number | null; transport?: 'in_process' | 'unix_socket' | 'websocket' | 'ros2' | string; data_class?: string }
 export interface DataSchema { title?: string; description?: string; type?: string; properties?: Record<string, { type?: string; description?: string; 'x-unit'?: string; minimum?: number; maximum?: number }>; required?: string[]; [key: string]: unknown }
-export interface DataTypeDefinition { id: string; media_type: string; codec: string; schema: DataSchema; max_payload_bytes: number }
+export interface DataTypeDefinition { id: string; version: string; purpose: string; media_type: string; codec: string; schema: DataSchema; max_payload_bytes: number }
 
 export interface NodeSource { node: string; output: string }
 export interface NodeInstance {

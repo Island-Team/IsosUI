@@ -125,7 +125,7 @@
 .react-flow__edge.node-graph-edge--state .react-flow__edge-path { stroke-dasharray: 2 5; }
 .react-flow__edge.node-graph-edge--opaque .react-flow__edge-path { stroke-dasharray: 1 7; }
 .react-flow__edge.node-graph-edge-transport--unix_socket .react-flow__edge-path, .react-flow__edge.node-graph-edge-transport--ros2 .react-flow__edge-path { stroke-width: 3.5; }
-.react-flow__edge.node-graph-edge-transport--websocket .react-flow__edge-path { stroke-width: 4; stroke-dasharray: 2 4; }
+.react-flow__edge.node-graph-edge-transport--websocket .react-flow__edge-path { stroke-width: 4; }
 .react-flow__edge.animated .react-flow__edge-path { animation: none; }
 .node-graph-card--mirrored .node-graph-card__ports { flex-direction: row-reverse; }
 .node-graph-card--mirrored .node-graph-card__port { text-align: right; }
@@ -152,13 +152,6 @@
 .graph-core-window__resize { position: absolute; right: 0; bottom: 0; width: 20px; height: 20px; cursor: nwse-resize; touch-action: none; }
 .graph-core-window__resize::after { content: ''; position: absolute; right: 4px; bottom: 4px; width: 9px; height: 9px; border-right: 2px solid var(--text-secondary); border-bottom: 2px solid var(--text-secondary); }
 .graph-core-window__placeholder { padding: 18px; }
-.node-graph-logs { display: flex; flex-direction: column; flex: 0 0 min(28vh, 300px); min-height: 140px; border-top: 1px solid var(--border); background: var(--bg-elevated); }
-.node-graph-logs header { display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 4px 10px; }
-.node-graph-logs header > strong { margin-right: auto; }
-.node-graph-logs label { display: inline-flex; flex-direction: row; align-items: center; gap: 5px; }
-.node-graph-logs select { width: 130px; }
-.node-graph-logs input[type='checkbox'] { width: 18px; min-height: 18px; }
-.node-graph-logs pre { flex: 1; min-height: 0; margin: 0; padding: 10px; overflow: auto; border-top: 1px solid var(--border); font-size: .73rem; white-space: pre-wrap; }
 .node-graph-diagnostic { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: 100%; text-align: left; white-space: normal; border-color: var(--error) !important; }
 .node-graph-panel { border-top: 1px solid var(--border); }
 .node-graph-panel > summary { display: flex; justify-content: space-between; align-items: center; min-height: 36px; cursor: pointer; color: var(--text); font-size: .82rem; list-style: none; }

@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { getLogPage, type LogLine } from '@/services/isos/node-graph';
+import { getLogPage, type LogLine } from '../../services/isos/node-graph';
 import type { Language } from '@/types';
+import './isos-logs-panel.scss';
 
 const SOURCES = ['isos', 'packages', 'graph', 'ui', 'eos', 'egia', 'mujoco', 'bridge', 'config'];
-export function IsosLogsPanel({ lang, onClose }: { lang: Language; onClose: () => void }): React.ReactElement {
-  const [source, setSource] = useState('isos');
+export function IsosLogsPanel({ lang, onClose, initialSource = 'isos' }: { lang: Language; onClose: () => void; initialSource?: string }): React.ReactElement {
+  const [source, setSource] = useState(initialSource);
   const [lines, setLines] = useState<LogLine[]>([]);
   const [error, setError] = useState('');
   const [following, setFollowing] = useState(true);
