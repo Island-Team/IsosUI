@@ -21,6 +21,7 @@ export interface NodeInstance {
   node_type: string;
   label: string;
   description: string;
+  package?: { id: string; version: string };
   capabilities?: string[];
   settings?: Record<string, unknown>;
   inputs?: Record<string, NodeSource>;
@@ -49,6 +50,13 @@ export interface ProcessStatus {
   processes: { id: string; pid?: number; restarts: number; state?: string; last_error?: string | null }[];
 }
 export interface BackendPackage { id: string; version: string; linked: boolean; scenes: string[]; devices: string[]; ready: boolean; issues: string[] }
+export interface NodeSetDefinition {
+  package: { id: string; version: string };
+  id: string;
+  parameters: Record<string, { type: 'string'; default?: string }>;
+  nodes: { ref: string; core: string; layer: string; group?: string; profile: NodeInstance }[];
+}
+export interface NodeSetPreview { graph: NodeGraph; added_paths: string[] }
 export interface SetupStatus { ready?: boolean; issues?: string[]; [key: string]: unknown }
 export interface ProcessLog { node?: string; lines?: string[]; text?: string; [key: string]: unknown }
 
@@ -81,6 +89,10 @@ export function graphWithBackendScene(graph: NodeGraph, id: string, version: str
 
 export function getNodeGraph(): Promise<NodeGraphDocument> { return request('/node-graph'); }
 export function getNodeTypes(): Promise<{ types: NodeTypeDefinition[] }> { return request('/node-types'); }
+export function getNodeSets(): Promise<{ sets: NodeSetDefinition[] }> { return request('/node-sets'); }
+export function previewNodeSet(set: NodeSetDefinition, graph: NodeGraph, values: Record<string, string>): Promise<NodeSetPreview> {
+  return request('/node-sets/preview', 'POST', { package: set.package, set_id: set.id, graph, values });
+}
 export function getProcessStatus(): Promise<ProcessStatus> { return request('/process-status'); }
 export function getBackends(): Promise<{ backends: BackendPackage[] }> { return request('/backends'); }
 export function installBackend(id: string, version: string): Promise<unknown> {

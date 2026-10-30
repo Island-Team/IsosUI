@@ -1,20 +1,20 @@
 import type { NodeInstance, NodeTypeDefinition } from '@/services/isos/node-graph';
 
-export type NodeFamily = 'process' | 'camera' | 'base' | 'manipulator' | 'dispatcher' | 'manual' | 'primitive' | 'skill' | 'egia-data' | 'egia-process' | 'software' | 'unknown';
 export type PortFamily = 'camera' | 'observation' | 'movement' | 'request' | 'outcome' | 'health' | 'status' | 'context' | 'plan' | 'other';
 
-export function nodeFamily(definition?: NodeTypeDefinition): NodeFamily {
-  if (!definition) return 'unknown';
-  if (definition.core === 'isos') return 'process';
-  if (definition.core === 'egia') return definition.group.includes('data') || /source|context/.test(definition.id) ? 'egia-data' : 'egia-process';
-  if (definition.id === 'eos.control.manual@v1.0') return 'manual';
-  if (definition.id === 'eos.control.primitive@v1.0') return 'primitive';
-  if (definition.id === 'eos.control.skill@v1.0') return 'skill';
-  if (definition.group === 'camera' || definition.kind === 'camera') return 'camera';
-  if (definition.group === 'base' || definition.kind === 'base') return 'base';
-  if (definition.group === 'manipulator' || definition.kind === 'manipulator') return 'manipulator';
-  if (definition.layer === 'dispatcher' || definition.group === 'dispatcher') return 'dispatcher';
-  return definition.lifecycle === 'process' ? 'process' : 'software';
+/** Stable layer hue with a bounded group shade for both editor themes. */
+export function nodeVisualStyle(definition?: NodeTypeDefinition): Record<string, string> {
+  if (!definition) return { '--node-layer': '#64748b', '--node-group-light': '#475569', '--node-group-dark': '#94a3b8' };
+  const hues: Record<string, number> = { process: 215, hardware: 194, dispatcher: 224, control: 265, common: 145, data: 145 };
+  const hash = [...definition.layer].reduce((value, character) => (value * 31 + character.charCodeAt(0)) >>> 0, 0);
+  const hue = hues[definition.layer] ?? hash % 360;
+  const groupHash = [...definition.group].reduce((value, character) => (value * 31 + character.charCodeAt(0)) >>> 0, 0);
+  const step = groupHash % 5;
+  return {
+    '--node-layer': `hsl(${hue} 65% 46%)`,
+    '--node-group-light': `hsl(${hue} ${58 + step * 3}% ${34 + step * 3}%)`,
+    '--node-group-dark': `hsl(${hue} ${62 + step * 3}% ${65 + step * 3}%)`,
+  };
 }
 
 export function portFamily(dataType: string): PortFamily {

@@ -32,6 +32,11 @@
 .node-graph-legend span { display: inline-flex; align-items: center; gap: 5px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: .66rem; }
 .node-graph-legend i { display: block; width: 9px; height: 9px; border-radius: 50%; background: var(--port); }
 .node-graph-legend .node-graph-port--movement i, .node-graph-legend .node-graph-port--request i { border-radius: 1px; transform: rotate(45deg); }
+.node-graph-set-library { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--border); }
+.node-graph-set-library > p { margin: 0; color: var(--text-secondary); font-size: .75rem; }
+.node-graph-set-preview { display: grid; gap: 8px; padding: 9px; border: 1px solid var(--border); border-radius: 6px; font-size: .74rem; }
+.node-graph-set-preview ul { max-height: 120px; margin: 0; padding-left: 18px; overflow: auto; overflow-wrap: anywhere; }
+.node-graph-set-preview button { justify-self: start; }
 .node-graph-canvas { position: relative; min-width: 0; min-height: 0; }
 .node-graph-canvas .react-flow { position: absolute; inset: 0; width: 100%; height: 100%; }
 .node-graph-canvas .react-flow__selection { border: 1px solid var(--primary); background: var(--primary-subtle); }
@@ -59,28 +64,21 @@
 .node-graph-quick-add__list button:hover, .node-graph-quick-add__list button:focus-visible { background: var(--bg-secondary); }
 .node-graph-quick-add__list small { max-width: 100%; color: var(--text-secondary); font-size: .7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .node-graph-empty { position: absolute; z-index: 1; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(90%, 360px); text-align: center; color: var(--text-secondary); }
-.node-graph-card { --family: #64748b; position: relative; min-width: 240px; max-width: 300px; padding: 10px; color: var(--text); background: var(--bg-elevated); border: 1px solid var(--family); border-top: 5px solid var(--family); border-radius: 8px; box-shadow: var(--shadow-lg); }
+.node-graph-card { --node-group: var(--node-group-light); position: relative; min-width: 240px; max-width: 300px; padding: 10px; color: var(--text); background: var(--bg-elevated); border: 1px solid var(--node-group); border-top: 5px solid var(--node-layer); border-radius: 8px; box-shadow: var(--shadow-lg); }
+[data-theme='dark'] .node-graph-card { --node-group: var(--node-group-dark); }
 .node-graph-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
 .node-graph-card:hover, .node-graph-card:focus-within { z-index: 5; }
-.node-graph-card--process { --family: #64748b; }
-.node-graph-card--camera { --family: #0891b2; }
-.node-graph-card--base { --family: #d97706; }
-.node-graph-card--manipulator { --family: #8b5cf6; }
-.node-graph-card--dispatcher { --family: #2563eb; }
-.node-graph-card--manual { --family: #0d9488; }
-.node-graph-card--primitive { --family: #ea580c; }
-.node-graph-card--skill { --family: #a855f7; }
-.node-graph-card--egia-data { --family: #16a34a; }
-.node-graph-card--egia-process { --family: #e11d48; }
-.node-graph-card--software { --family: #6366f1; }
-.node-graph-card--unknown, .node-graph-card--error { --family: #dc2626; }
+.node-graph-card--error { outline: 3px solid var(--error); outline-offset: 2px; }
 .node-graph-card--selected { box-shadow: 0 0 0 3px var(--primary), var(--shadow-lg); }
 .node-graph-card__heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.node-graph-card__heading > span { color: var(--family); font-size: .68rem; font-weight: 800; }
+.node-graph-card__heading > span { color: var(--text-secondary); font-size: .68rem; font-weight: 800; }
+.node-graph-card__heading > small { color: var(--node-group); font-weight: 800; }
+.node-graph-card__badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.node-graph-card__badges span { padding: 1px 5px; border: 1px solid var(--border); border-radius: 4px; color: var(--text-secondary); font-size: .62rem; overflow-wrap: anywhere; }
 .node-graph-card > strong { display: block; }
 .node-graph-card > small { color: var(--text-secondary); font-size: .7rem; }
 .node-graph-card > strong { margin-top: 4px; }
-.node-graph-card__details { position: absolute; z-index: 10; top: calc(100% + 8px); left: 0; width: max(100%, 280px); max-width: min(360px, 80vw); padding: 12px; color: var(--text); background: var(--bg-elevated); border: 1px solid var(--family); border-radius: $radius-sm; box-shadow: var(--shadow-lg); opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(-4px); transition: opacity $duration-fast ease, transform $duration-fast ease, visibility $duration-fast ease; }
+.node-graph-card__details { position: absolute; z-index: 10; top: calc(100% + 8px); left: 0; width: max(100%, 280px); max-width: min(360px, 80vw); padding: 12px; color: var(--text); background: var(--bg-elevated); border: 1px solid var(--node-group); border-radius: $radius-sm; box-shadow: var(--shadow-lg); opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(-4px); transition: opacity $duration-fast ease, transform $duration-fast ease, visibility $duration-fast ease; }
 .node-graph-card:hover .node-graph-card__details, .node-graph-card:focus-within .node-graph-card__details { opacity: 1; visibility: visible; transform: translateY(0); }
 .node-graph-card__details > code, .node-graph-card__details > small { display: block; overflow-wrap: anywhere; }
 .node-graph-card__details > small { margin-top: 4px; color: var(--text-secondary); font-size: .7rem; }
