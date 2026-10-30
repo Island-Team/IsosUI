@@ -3,10 +3,17 @@ import type { NodeChange } from 'reactflow';
 import { removeNode } from './node-graph-edits';
 
 export type NodePositions = Record<string, { x: number; y: number }>;
+export type NodeMirrors = Record<string, boolean>;
 
 /** A stable graph identity keeps visual positions separate from graph revisions. */
 export function graphLayoutKey(graph: NodeGraph): string {
   return `isosui-v2-layout:${encodeURIComponent(graph.robot.id)}`;
+}
+
+export function graphMirrorKey(graph: NodeGraph): string { return `${graphLayoutKey(graph)}:mirrors`; }
+export function parseNodeMirrors(raw: string | null): NodeMirrors {
+  try { const value: unknown = JSON.parse(raw || '{}'); return value && !Array.isArray(value) && typeof value === 'object' ? Object.fromEntries(Object.entries(value).filter((entry): entry is [string, boolean] => entry[1] === true)) : {}; }
+  catch { return {}; }
 }
 
 export function parseNodePositions(raw: string | null): NodePositions {

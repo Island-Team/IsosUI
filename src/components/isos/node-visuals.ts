@@ -1,4 +1,4 @@
-import type { NodeInstance, NodeTypeDefinition } from '@/services/isos/node-graph';
+import type { NodeInstance, NodeTypeDefinition, PortDefinition } from '@/services/isos/node-graph';
 
 export type PortFamily = 'camera' | 'observation' | 'movement' | 'request' | 'outcome' | 'health' | 'status' | 'context' | 'plan' | 'other';
 
@@ -29,6 +29,17 @@ export function portFamily(dataType: string): PortFamily {
   if (/context|snapshot/.test(value)) return 'context';
   if (/plan|proposal/.test(value)) return 'plan';
   return 'other';
+}
+
+/** Independent visual channels: hue is rate, border is community, pattern is payload class. */
+export function interfaceVisual(port?: PortDefinition): { className: string; style: Record<string, string>; label: string } {
+  const rate = port?.expected_rate_hz;
+  const known = typeof rate === 'number' && Number.isFinite(rate) && rate > 0;
+  const unit = known ? Math.max(0, Math.min(1, (Math.log10(rate) + 1) / (Math.log10(60) + 1))) : 0;
+  const hue = Math.round(280 * (1 - unit));
+  const dataClass = (port?.data_class || portFamily(port?.data_type || '')).toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+  const transport = (port?.transport || 'in_process').toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+  return { className: `node-graph-edge--${dataClass} node-graph-edge-transport--${transport}`, style: { '--wire': known ? `hsl(${hue} 82% 52%)` : '#64748b' }, label: `${known ? `${rate} Hz` : 'Rate unknown'} · ${transport} · ${dataClass}` };
 }
 
 export function nodeSummary(definition: NodeTypeDefinition | undefined, node: NodeInstance): string[] {

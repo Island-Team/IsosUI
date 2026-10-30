@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { decodeRgbFrame, eosRequest, type EosCameraFrame, type EosControlReply, type EosDiscoveryNode } from '@/services/eos/control';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { eosRequest, type EosControlReply, type EosDiscoveryNode } from '@/services/eos/control';
+import { VisionPanel } from './VisionPanel';
 import { getNodeGraph, getProcessStatus, type NodeGraphDocument, type NodeInstance, type ProcessStatus } from '@/services/isos/node-graph';
 import type { Language } from '@/types';
 import { activeGraphIsCurrent, defaultMovement, discoveredHardware, eosControlNodes, eosGraphNodes, hardwareKind, monitorBadge, movementTypes, movementValid, type AdapterStatus, type EosGraphNode, type Movement, type MovementType } from './eos-control-model';
@@ -149,11 +150,8 @@ export function EosWorkbench({ lang, onOpenGraph, graphDirty }: Props): React.Re
   const [status, setStatus] = useState<ProcessStatus | null>(null);
   const [discovery, setDiscovery] = useState<EosDiscoveryNode[]>([]);
   const [readings, setReadings] = useState<Record<string, Reading>>({});
-  const [selectedCamera, setSelectedCamera] = useState('');
-  const [frame, setFrame] = useState<{ value: EosCameraFrame; at: number } | null>(null);
   const [error, setError] = useState('');
   const [clock, setClock] = useState(Date.now());
-  const canvas = useRef<HTMLCanvasElement>(null);
   const refresh = useCallback(async (): Promise<void> => {
     try {
       const [graph, process] = await Promise.all([getNodeGraph(), getProcessStatus()]);
@@ -161,19 +159,16 @@ export function EosWorkbench({ lang, onOpenGraph, graphDirty }: Props): React.Re
       if (activeGraphIsCurrent(graph.revision, process.active_revision)) {
         const found = await eosRequest<EosControlReply & { nodes: EosDiscoveryNode[] }>({ op: 'discover' });
         setDiscovery(found.nodes);
-      } else { setDiscovery([]); setReadings({}); setFrame(null); }
+      } else { setDiscovery([]); setReadings({}); }
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); setDiscovery([]); }
   }, []);
   useEffect(() => { void refresh(); const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refresh(); }, 5000); return () => window.clearInterval(timer); }, [refresh]);
   const active = Boolean(graphDoc && activeGraphIsCurrent(graphDoc.revision, status?.active_revision) && status?.state === 'running' && !graphDirty);
+  const visionActive = Boolean(graphDoc && activeGraphIsCurrent(graphDoc.revision, status?.active_revision) && status?.state === 'running');
   const nodes = useMemo(() => graphDoc ? eosGraphNodes(graphDoc.graph) : [], [graphDoc]);
   const controls = useMemo(() => graphDoc ? eosControlNodes(graphDoc.graph) : [], [graphDoc]);
   const discoveredPaths = discovery.map((entry) => entry.path).join('|');
   const hardware = useMemo(() => graphDoc ? discoveredHardware(graphDoc.graph, discovery).slice(0, 12) : [], [graphDoc, discoveredPaths]);
-  const cameras = hardware.filter((entry) => entry.node.node_type === 'eos.hardware.camera@v1.0');
-  const cameraProfile = cameras.find((entry) => entry.path === selectedCamera)?.node;
-  const cameraIntervalMs = Math.max(1000, Math.ceil(1000 / Math.max(0.01, cameraProfile?.observation?.max_rate_hz || 1)));
-  useEffect(() => { if (!cameras.some((entry) => entry.path === selectedCamera)) setSelectedCamera(cameras[0]?.path || ''); }, [cameras, selectedCamera]);
   useEffect(() => {
     if (!active || !hardware.length) return;
     let disposed = false; let pending = false;
@@ -205,47 +200,20 @@ export function EosWorkbench({ lang, onOpenGraph, graphDirty }: Props): React.Re
     void poll(); const timer = window.setInterval(() => { void poll(); }, 2000);
     return () => { disposed = true; window.clearInterval(timer); };
   }, [active, hardware.map(({ path }) => path).join('|')]);
-  useEffect(() => {
-    setFrame(null);
-    if (!active || !selectedCamera) return;
-    let disposed = false; let pending = false;
-    const poll = async (): Promise<void> => {
-      if (disposed || pending || document.visibilityState !== 'visible') return;
-      pending = true;
-      try {
-        const reply = await eosRequest<EosControlReply & { frame: EosCameraFrame }>({ op: 'capture', node_path: selectedCamera });
-        if (!disposed) setFrame({ value: reply.frame, at: Date.now() });
-      } catch (reason) { if (!disposed) setError(reason instanceof Error ? reason.message : String(reason)); }
-      finally { pending = false; }
-    };
-    void poll(); const timer = window.setInterval(() => { void poll(); }, cameraIntervalMs);
-    return () => { disposed = true; window.clearInterval(timer); };
-  }, [active, selectedCamera, cameraIntervalMs]);
-  useEffect(() => {
-    if (!frame || !canvas.current) return;
-    try {
-      const { width_px: width, height_px: height } = frame.value;
-      const pixels = decodeRgbFrame(frame.value, cameraProfile?.observation?.max_payload_bytes);
-      const context = canvas.current.getContext('2d');
-      if (!context) throw new Error('Canvas is unavailable.');
-      canvas.current.width = width; canvas.current.height = height;
-      const image = context.createImageData(width, height); image.data.set(pixels);
-      context.putImageData(image, 0, 0);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
-  }, [frame, cameraProfile?.observation?.max_payload_bytes]);
   return <main className="eos-workbench">
     <header className="eos-workbench__header"><div><p className="isos-eyebrow">EOS · Aether v2</p><h1>{copy.title}</h1><p>{copy.intro}</p></div><div className="eos-control__actions"><button type="button" onClick={() => void refresh()}>{copy.refresh}</button><button type="button" onClick={onOpenGraph}>{copy.graph}</button></div></header>
+    <nav className="eos-workbench__section-nav" aria-label={lang === 'cn' ? 'EOS 面板' : 'EOS sections'}><a href="#eos-controls">{copy.controls}</a><a href="#eos-monitor">{copy.monitor}</a><a href="#eos-vision">{lang === 'cn' ? '视觉' : 'Vision'}</a></nav>
     <div className="eos-workbench__revisions"><span>{copy.saved}: <code>{graphDoc?.revision || '—'}</code></span><span>{copy.active}: <code>{status?.active_revision || '—'}</code></span></div>
     {graphDirty && <p role="status" className="eos-control__warning">{copy.dirty}</p>}
     {!active && <p role="status" className="eos-control__warning">{copy.off}</p>}
     {error && <p role="alert" className="eos-control__warning">{error}</p>}
-    <section className="eos-workbench__section"><h2>{copy.controls}</h2>{controls.length ? <div className="eos-workbench__controls">{controls.map((entry) => entry.node.node_type === 'eos.control.skill@v1.0'
+    <section id="eos-controls" className="eos-workbench__section"><h2>{copy.controls}</h2>{controls.length ? <div className="eos-workbench__controls">{controls.map((entry) => entry.node.node_type === 'eos.control.skill@v1.0'
       ? <SkillControl key={`${graphDoc?.revision}:${entry.path}`} entry={entry} nodes={nodes} hardware={hardware} readings={readings} clock={clock} active={active} lang={lang} />
       : <MovementControl key={`${graphDoc?.revision}:${entry.path}`} entry={entry} hardware={hardware.find((node) => node.path === entry.node.settings?.target)} reading={readings[String(entry.node.settings?.target || '')]} clock={clock} active={active} lang={lang} />)}</div> : <p>{copy.noControls}</p>}</section>
-    <section className="eos-workbench__section"><h2>{copy.monitor}</h2>{hardware.length ? <div className="eos-monitor__grid">{hardware.map((entry) => {
+    <section id="eos-monitor" className="eos-workbench__section"><h2>{copy.monitor}</h2>{hardware.length ? <div className="eos-monitor__grid">{hardware.map((entry) => {
       const kind = hardwareKind(entry.node.node_type); const reading = readings[entry.path]; const badge = monitorBadge(reading, clock);
       return <article className={`eos-monitor__card eos-monitor__card--${kind}`} key={entry.path}><header><h3>{entry.node.label || entry.node.id}</h3><span className={`eos-monitor__${badge}`}>{copy[badge]}</span></header><p><code>{kind}</code> · {copy.status}: {reading?.status?.state || '—'} · {copy.health}: {reading?.health?.state || '—'}</p>{reading?.status?.active_command_id && <p>{copy.command}: <code>{reading.status.active_command_id}</code></p>}{reading?.health?.message && <p>{reading.health.message}</p>}{reading?.error && <p role="alert">{reading.error}</p>}{kind !== 'camera' && <><h4>{copy.observation}</h4><Observation kind={kind || ''} value={reading?.observation} />{reading?.observationAt && <p>{copy.update}: {new Date(reading.observationAt).toLocaleTimeString()}</p>}</>}</article>;
     })}</div> : <p>{copy.noHardware}</p>}</section>
-    <section className="eos-workbench__section eos-monitor__camera"><h2>{copy.camera}</h2>{cameras.length ? <><label className="eos-control__field"><span>{copy.choose}</span><select value={selectedCamera} onChange={(event) => setSelectedCamera(event.target.value)}>{cameras.map((entry) => <option key={entry.path} value={entry.path}>{entry.node.label || entry.node.id}</option>)}</select></label><div className="eos-monitor__canvas"><canvas ref={canvas} aria-label={`${copy.camera}: ${cameras.find((entry) => entry.path === selectedCamera)?.node.label || ''}`} /></div>{frame ? <p><span className={clock - frame.at > 5000 ? 'eos-monitor__stale' : 'eos-monitor__live'}>{clock - frame.at > 5000 ? copy.stale : copy.live}</span> · {copy.dimensions}: {frame.value.width_px} × {frame.value.height_px} · {copy.sequence}: {String(frame.value.meta?.sequence ?? '—')} · {copy.depth}: {frame.value.depth ? 'yes' : 'no'} · {copy.update}: {new Date(frame.at).toLocaleTimeString()}</p> : <p>{copy.noData}</p>}</> : <p>{copy.noCamera}</p>}</section>
+    <VisionPanel lang={lang} graph={graphDoc?.graph || null} active={visionActive} />
   </main>;
 }

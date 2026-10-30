@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { NodeGraph } from '@/services/isos/node-graph';
-import { applyNodeSelection, graphLayoutKey, parseNodePositions, removeSelectedNodes } from './graph-canvas-state';
+import { applyNodeSelection, graphLayoutKey, graphMirrorKey, parseNodeMirrors, parseNodePositions, removeSelectedNodes } from './graph-canvas-state';
 
 const graph = (id: string): NodeGraph => ({ version: '2.0.0', robot: { id, name: id }, cores: {} });
 
@@ -13,6 +13,12 @@ describe('graph canvas state', () => {
   it('ignores corrupted or non-finite saved coordinates', () => {
     expect(parseNodePositions('{broken')).toEqual({});
     expect(parseNodePositions('{"good":{"x":2,"y":3},"bad":{"x":"2","y":3},"other":{"x":null,"y":0}}')).toEqual({ good: { x: 2, y: 3 } });
+  });
+
+  it('keeps mirrored ports only in local visual layout', () => {
+    expect(graphMirrorKey(graph('alpha'))).toBe('isosui-v2-layout:alpha:mirrors');
+    expect(parseNodeMirrors('{broken')).toEqual({});
+    expect(parseNodeMirrors('{"a":true,"b":false,"c":"yes"}')).toEqual({ a: true });
   });
 
   it('adds and removes nodes from rectangle selection without changing positions', () => {

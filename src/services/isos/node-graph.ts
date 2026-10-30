@@ -10,10 +10,13 @@ export interface NodeTypeDefinition {
   lifecycle: 'internal' | 'process' | 'adapter';
   capabilities: string[];
   settings: { name: string; data_type: 'string' | 'positive_integer' | 'nonnegative_integer' | 'string_array' | 'string_table'; required: boolean; description?: string; unit?: string; min?: number; max?: number; choices?: string[] }[];
-  inputs: { name: string; data_type: string; required: boolean }[];
-  outputs: { name: string; data_type: string; required: boolean }[];
+  inputs: PortDefinition[];
+  outputs: PortDefinition[];
   safety_adapter_type?: string | null;
 }
+export interface PortDefinition { name: string; data_type: string; required: boolean; description?: string; expected_rate_hz?: number | null; transport?: 'in_process' | 'unix_socket' | 'websocket' | 'ros2' | string; data_class?: string }
+export interface DataSchema { title?: string; description?: string; type?: string; properties?: Record<string, { type?: string; description?: string; 'x-unit'?: string; minimum?: number; maximum?: number }>; required?: string[]; [key: string]: unknown }
+export interface DataTypeDefinition { id: string; media_type: string; codec: string; schema: DataSchema; max_payload_bytes: number }
 
 export interface NodeSource { node: string; output: string }
 export interface NodeInstance {
@@ -60,6 +63,8 @@ export interface NodeSetDefinition {
 export interface NodeSetPreview { graph: NodeGraph; added_paths: string[] }
 export interface SetupStatus { ready?: boolean; issues?: string[]; [key: string]: unknown }
 export interface ProcessLog { node?: string; lines?: string[]; text?: string; [key: string]: unknown }
+export interface LogLine { timestamp: string; level: string; source: string; message: string }
+export interface LogPage { lines: LogLine[]; next_cursor: string | null; rotated: boolean }
 
 export function backendPackagePin(node: NodeInstance): { id: string; version: string } | null {
   if (node.node_type === 'eos.process.mujoco@v1.0' && node.package) return node.package;
@@ -102,7 +107,7 @@ export function graphWithBackendScene(graph: NodeGraph, id: string, version: str
 }
 
 export function getNodeGraph(): Promise<NodeGraphDocument> { return request('/node-graph'); }
-export function getNodeTypes(): Promise<{ types: NodeTypeDefinition[] }> { return request('/node-types'); }
+export function getNodeTypes(): Promise<{ types: NodeTypeDefinition[]; data_types?: DataTypeDefinition[] }> { return request('/node-types'); }
 export function getNodeSets(): Promise<{ sets: NodeSetDefinition[] }> { return request('/node-sets'); }
 export function getInstalledPackages(): Promise<{ installed: InstalledPackage[] }> { return request('/packages'); }
 export function previewNodeSet(set: NodeSetDefinition, graph: NodeGraph, values: Record<string, string>, replaceLegacyMujoco = false): Promise<NodeSetPreview> {
@@ -122,6 +127,11 @@ export function controlProcesses(operation: 'run' | 'stop' | 'restart', revision
 }
 export function getProcessLogs(node: string, lines = 100): Promise<ProcessLog> {
   return request(`/process-logs/${encodeURIComponent(node)}?lines=${Math.max(1, Math.min(500, Math.floor(lines)))}`);
+}
+export function getLogPage(source: string, cursor?: string, limit = 200): Promise<LogPage> {
+  const params = new URLSearchParams({ source, limit: String(Math.max(1, Math.min(200, Math.floor(limit)))) });
+  if (cursor) params.set('cursor', cursor);
+  return request(`/logs?${params.toString()}`);
 }
 export function validateNodeGraph(graph: NodeGraph): Promise<NodeGraphValidation> {
   return request('/node-graph/validate', 'POST', { schema_version: 2, graph });
