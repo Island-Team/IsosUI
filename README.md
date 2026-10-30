@@ -9,11 +9,12 @@ Use Node.js 22 and npm 10 or newer:
 ```bash
 npm ci
 npm run dev
+npm start
 npm test
 npm run build
 ```
 
-The development server serves the local build on port 3000. A production local build uses same-origin `/api/isos/v2`; IsOS serves `dist/local` through its own loopback server when `ISOSUI_REPO_PATH` or `ISOS_WEB_DIST` is set. The hosted build uses `http://127.0.0.1:16000/api/isos/v2` and requires the local IsOS server to allow the exact hosted origin. The editor connects by address and port without a URL token or Authorization header.
+`npm run dev` starts the development frontend and `npm start` starts the production-mode frontend. Both bind to `127.0.0.1:16001` and call the IsOS API directly at `http://127.0.0.1:16000/api/isos/v2`. IsOS supervises `npm start` when launching the local workbench; Ctrl+C stops it with the IsOS service. To use different loopback ports, set `ISOSUI_PORT` and `ISOSUI_API_ORIGIN=http://127.0.0.1:<api-port>` before launching npm. The API origin is embedded when Webpack compiles the frontend, and only an HTTP loopback origin is accepted. IsOS must allow the frontend's exact origin in CORS. The editor uses no URL token or Authorization header.
 
 ## Workbench
 
@@ -31,11 +32,13 @@ The graph is configuration, not live camera or movement data. IsOS applies a sav
 
 | Command | Output | Asset base | API base |
 | --- | --- | --- | --- |
-| `npm run build:local` | `dist/local/` | `/` | `/api/isos/v2` |
+| `npm run build:local` | `dist/local/` | `/` | `http://127.0.0.1:16000/api/isos/v2` |
 | `npm run build:hosted` | `dist/hosted/` | `/isosui/` | `http://127.0.0.1:16000/api/isos/v2` |
 
-Each output has `index.html`, `assets/`, `IslandTeam.png`, and `manifest.json`. The manifest declares `schema_version: 1`, `version`, `source_commit`, `api_schema_version: 2`, and `build_target`. IsOS serves `dist/local/index.html` as the fallback for `/en/isos` and `/cn/isos`. Island-web places hosted assets under `/isosui/` and copies the hosted HTML to its `/en/isos` and `/cn/isos` static routes so URL fragments remain intact.
+Each output has `index.html`, `assets/`, `IslandTeam.png`, and `manifest.json`. The manifest declares `schema_version: 1`, `version`, `source_commit`, `api_schema_version: 2`, and `build_target`. The npm server serves `/en/isos` and `/cn/isos` locally. Island-web places hosted assets under `/isosui/` and copies the hosted HTML to its `/en/isos` and `/cn/isos` static routes so URL fragments remain intact.
 
 The manual release workflow accepts an existing `v<package version>` tag. It builds both targets and publishes `isosui-local-<tag>.tar.gz`, `isosui-hosted-<tag>.tar.gz`, and `SHA256SUMS`. A release is not required to develop or build from a pinned source commit. After publishing, it dispatches an `isosui-release` event to Island-web. Configure a fine-grained token for `Island-Team/Island-web` with Contents and Pull requests write access as `ISLAND_WEB_DISPATCH_TOKEN` in IsosUI and `ISOSUI_MIRROR_TOKEN` in Island-web. Island-web verifies the hosted archive, builds the pinned website, and opens a PR; squash merge that PR after checks pass to trigger the normal website deployment.
+
+The standalone frontend was checked on Node.js 22 with `npm test`, `npm run build`, and `npm start`; `/en/isos` returned HTTP 200 at `127.0.0.1:16001`, and the local bundle contained the `127.0.0.1:16000` API address. Complete output is saved locally under `logs/test/20261030-npm-frontend/`.
 
 Licensed under [Apache-2.0](LICENSE).
