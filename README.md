@@ -44,3 +44,5 @@ The standalone frontend was checked on Node.js 22 with `npm test`, `npm run buil
 Licensed under [Apache-2.0](LICENSE).
 
 Graph selection and layout checks: `npm test`, `npm run build`, and `npm start` (`ISOSUI_PORT=16041`); the dev server returned HTTP 200 and warning overlays are disabled while compile error overlays remain enabled. Logs: `logs/test/20261030-graph-selection/`.
+
+The Graph module loads as a separate JavaScript chunk, and webpack emits a small independent runtime chunk. The self-hosted Chinese font files remain optional browser requests; webpack's JavaScript size warning excludes those font assets but still checks JavaScript chunks and the startup entrypoint. The build log under `logs/test/20261030-webpack-size/` records the measured output.

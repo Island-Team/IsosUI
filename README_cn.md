@@ -35,3 +35,5 @@ IsOS MuJoCo 后端检查器提供“显示 MuJoCo 窗口”设置，在该后端
 独立前端已在 Node.js 22 环境下运行 `npm test`、`npm run build` 与 `npm start`；`127.0.0.1:16001/en/isos` 返回 HTTP 200，本地构建包含 `127.0.0.1:16000` 的 API 地址。完整输出保存在本地 `logs/test/20261030-npm-frontend/`。
 
 节点选择与布局检查：`npm test`、`npm run build` 和 `npm start`（`ISOSUI_PORT=16041`）；开发服务器返回 HTTP 200，警告不再弹出遮挡层，编译错误仍会弹出。日志：`logs/test/20261030-graph-selection/`。
+
+节点图模块按需加载为独立 JavaScript 块，Webpack 运行时代码也单独输出。自托管中文字体文件仍由浏览器按需请求；Webpack 的 JavaScript 体积警告不计入这些字体资源，但继续检查 JavaScript 块和首屏入口。构建结果记录在 `logs/test/20261030-webpack-size/`。
