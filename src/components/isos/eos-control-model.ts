@@ -23,6 +23,25 @@ export function activeGraphIsCurrent(revision: string, active: string | null | u
   return Boolean(revision && active && revision === active);
 }
 
+export type HardwareKind = 'camera' | 'base' | 'manipulator';
+export function hardwareKind(nodeType: string): HardwareKind | null {
+  const match = /^eos\.hardware\.(camera|base|manipulator)@v1\.0$/.exec(nodeType);
+  return match ? match[1] as HardwareKind : null;
+}
+
+export interface AdapterStatus { state: string; active_command_id?: string | null }
+export interface MonitorReading { status?: AdapterStatus; statusAt?: number }
+export type MonitorBadge = 'live' | 'stale' | 'stopped' | 'starting' | 'fault';
+export function monitorBadge(reading: MonitorReading | undefined, now: number): MonitorBadge {
+  if (!reading?.status || !reading.statusAt || now - reading.statusAt > 5000) return 'stale';
+  switch (reading.status.state) {
+    case 'ready': return 'live';
+    case 'stopped': return 'stopped';
+    case 'starting': return 'starting';
+    default: return 'fault';
+  }
+}
+
 export type MovementType = 'body_velocity' | 'relative_pose' | 'joint_positions' | 'end_effector_pose';
 export type Movement =
   | { type: 'body_velocity'; x_m_s: number; y_m_s: number; yaw_rad_s: number; valid_for_ms: number }

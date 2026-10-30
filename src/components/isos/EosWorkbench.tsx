@@ -2,15 +2,15 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { decodeRgbFrame, eosRequest, type EosCameraFrame, type EosControlReply, type EosDiscoveryNode } from '@/services/eos/control';
 import { getNodeGraph, getProcessStatus, type NodeGraphDocument, type NodeInstance, type ProcessStatus } from '@/services/isos/node-graph';
 import type { Language } from '@/types';
-import { activeGraphIsCurrent, defaultMovement, discoveredHardware, eosControlNodes, eosGraphNodes, movementTypes, movementValid, type EosGraphNode, type Movement, type MovementType } from './eos-control-model';
+import { activeGraphIsCurrent, defaultMovement, discoveredHardware, eosControlNodes, eosGraphNodes, hardwareKind, monitorBadge, movementTypes, movementValid, type AdapterStatus, type EosGraphNode, type Movement, type MovementType } from './eos-control-model';
 import './eos-workbench.scss';
 
 interface Props { lang: Language; onOpenGraph: () => void; graphDirty: boolean }
 interface Health { state: string; code?: string | null; message?: string | null }
-interface Reading { at: number; health?: Health; observation?: Record<string, unknown>; error?: string }
+interface Reading { status?: AdapterStatus; statusAt?: number; health?: Health; healthAt?: number; observation?: Record<string, unknown>; observationAt?: number; error?: string }
 const COPY = {
-  en: { title: 'EOS control', intro: 'Run graph-declared primitives and skills through EOS admission. Inspect live hardware data below.', refresh: 'Refresh', graph: 'Edit graph', active: 'Active revision', saved: 'Saved revision', off: 'EOS is not running with this saved graph. Apply and run the graph before calling controls.', dirty: 'Apply graph edits before calling controls.', controls: 'Controls', noControls: 'Add a manual, primitive, or skill node in Graph to expose a control here.', target: 'Target', mode: 'Movement', invoke: 'Invoke', stop: 'Stop', execute: 'Execute skill', cancel: 'Cancel skill', result: 'Last result', pending: 'Running', parameters: 'Parameters', invalid: 'Enter values within the hardware limits.', unavailable: 'The target hardware node is missing or not admitted.', monitor: 'Data monitor', camera: 'Camera flow', noCamera: 'No camera is declared and discovered.', noHardware: 'No graph-declared hardware is discovered by EOS.', live: 'Live', stale: 'Stale', health: 'Health', observation: 'Observation', frame: 'Frame', sequence: 'Sequence', depth: 'Depth', dimensions: 'Dimensions', update: 'Last update', stopped: 'Stopped', choose: 'Select camera', noData: 'Waiting for a sample…', status: 'Status' },
-  cn: { title: 'EOS 控制', intro: '通过 EOS 准入执行节点图声明的原语和技能，并查看下方实时硬件数据。', refresh: '刷新', graph: '编辑节点图', active: '运行中修订', saved: '已保存修订', off: 'EOS 尚未运行此已保存节点图。请先应用并运行节点图。', dirty: '请先应用节点图修改，再调用控制。', controls: '控制', noControls: '在节点图中添加手动、原语或技能节点后，这里会显示对应控制。', target: '目标', mode: '运动模式', invoke: '调用', stop: '停止', execute: '执行技能', cancel: '取消技能', result: '最近结果', pending: '运行中', parameters: '参数', invalid: '参数超出硬件限制。', unavailable: '目标硬件节点缺失或未获准入。', monitor: '数据监视器', camera: '相机画面', noCamera: '没有已声明并被发现的相机。', noHardware: 'EOS 未发现节点图中声明的硬件。', live: '实时', stale: '过期', health: '健康', observation: '观测', frame: '帧', sequence: '序号', depth: '深度', dimensions: '尺寸', update: '最近更新', stopped: '已停止', choose: '选择相机', noData: '等待采样…', status: '状态' },
+  en: { title: 'EOS control', intro: 'Run graph-declared primitives and skills through EOS admission. Inspect live hardware data below.', refresh: 'Refresh', graph: 'Edit graph', active: 'Active revision', saved: 'Saved revision', off: 'EOS is not running with this saved graph. Apply and run the graph before calling controls.', dirty: 'Apply graph edits before calling controls.', controls: 'Controls', noControls: 'Add a manual, primitive, or skill node in Graph to expose a control here.', target: 'Target', mode: 'Movement', invoke: 'Invoke', stop: 'Stop', execute: 'Execute skill', cancel: 'Cancel skill', result: 'Last result', pending: 'Running', parameters: 'Parameters', invalid: 'Enter values within the hardware limits.', unavailable: 'The target hardware node is missing or not admitted.', monitor: 'Data monitor', camera: 'Camera flow', noCamera: 'No camera is declared and discovered.', noHardware: 'No graph-declared hardware is discovered by EOS.', live: 'Live', stale: 'Stale', starting: 'Starting', fault: 'Fault', health: 'Health', observation: 'Observation', frame: 'Frame', sequence: 'Sequence', depth: 'Depth', dimensions: 'Dimensions', update: 'Last update', stopped: 'Stopped', choose: 'Select camera', noData: 'Waiting for a sample…', status: 'Status', command: 'Command' },
+  cn: { title: 'EOS 控制', intro: '通过 EOS 准入执行节点图声明的原语和技能，并查看下方实时硬件数据。', refresh: '刷新', graph: '编辑节点图', active: '运行中修订', saved: '已保存修订', off: 'EOS 尚未运行此已保存节点图。请先应用并运行节点图。', dirty: '请先应用节点图修改，再调用控制。', controls: '控制', noControls: '在节点图中添加手动、原语或技能节点后，这里会显示对应控制。', target: '目标', mode: '运动模式', invoke: '调用', stop: '停止', execute: '执行技能', cancel: '取消技能', result: '最近结果', pending: '运行中', parameters: '参数', invalid: '参数超出硬件限制。', unavailable: '目标硬件节点缺失或未获准入。', monitor: '数据监视器', camera: '相机画面', noCamera: '没有已声明并被发现的相机。', noHardware: 'EOS 未发现节点图中声明的硬件。', live: '实时', stale: '过期', starting: '启动中', fault: '故障', health: '健康', observation: '观测', frame: '帧', sequence: '序号', depth: '深度', dimensions: '尺寸', update: '最近更新', stopped: '已停止', choose: '选择相机', noData: '等待采样…', status: '状态', command: '命令' },
 } as const;
 
 function asNumber(value: string): number { return value.trim() ? Number(value) : Number.NaN; }
@@ -176,13 +176,24 @@ export function EosWorkbench({ lang, onOpenGraph, graphDirty }: Props): React.Re
       if (disposed || pending || document.visibilityState !== 'visible') return;
       pending = true;
       await Promise.all(hardware.map(async ({ path, node }) => {
-        try {
-          const [health, observation] = await Promise.all([
-            eosRequest<EosControlReply & { health: Health }>({ op: 'health', node_path: path }),
-            node.node_type === 'eos.hardware.camera@v1.0' ? Promise.resolve(null) : eosRequest<EosControlReply & { observation: Record<string, unknown> }>({ op: 'observe', node_path: path }),
-          ]);
-          if (!disposed) setReadings((current) => ({ ...current, [path]: { at: Date.now(), health: health.health, observation: observation?.observation } }));
-        } catch (reason) { if (!disposed) setReadings((current) => ({ ...current, [path]: { at: Date.now(), error: reason instanceof Error ? reason.message : String(reason) } })); }
+        const [statusResult, healthResult, observationResult] = await Promise.allSettled([
+          eosRequest<EosControlReply & { status: AdapterStatus }>({ op: 'status', node_path: path }),
+          eosRequest<EosControlReply & { health: Health }>({ op: 'health', node_path: path }),
+          hardwareKind(node.node_type) === 'camera' ? Promise.resolve(null) : eosRequest<EosControlReply & { observation: Record<string, unknown> }>({ op: 'observe', node_path: path }),
+        ]);
+        if (disposed) return;
+        const at = Date.now();
+        const errors = [statusResult, healthResult, observationResult].flatMap((result) => result.status === 'rejected' ? [result.reason instanceof Error ? result.reason.message : String(result.reason)] : []);
+        setReadings((current) => {
+          const previous = current[path] || {};
+          return { ...current, [path]: {
+            ...previous,
+            ...(statusResult.status === 'fulfilled' ? { status: statusResult.value.status, statusAt: at } : {}),
+            ...(healthResult.status === 'fulfilled' ? { health: healthResult.value.health, healthAt: at } : {}),
+            ...(observationResult.status === 'fulfilled' && observationResult.value ? { observation: observationResult.value.observation, observationAt: at } : {}),
+            error: errors.length ? errors.join('; ') : undefined,
+          } };
+        });
       }));
       pending = false; if (!disposed) setClock(Date.now());
     };
@@ -227,8 +238,8 @@ export function EosWorkbench({ lang, onOpenGraph, graphDirty }: Props): React.Re
       ? <SkillControl key={`${graphDoc?.revision}:${entry.path}`} entry={entry} nodes={nodes} hardware={hardware} active={active} lang={lang} />
       : <MovementControl key={`${graphDoc?.revision}:${entry.path}`} entry={entry} hardware={hardware.find((node) => node.path === entry.node.settings?.target)} active={active} lang={lang} />)}</div> : <p>{copy.noControls}</p>}</section>
     <section className="eos-workbench__section"><h2>{copy.monitor}</h2>{hardware.length ? <div className="eos-monitor__grid">{hardware.map((entry) => {
-      const kind = entry.node.node_type.split('.')[2]; const reading = readings[entry.path]; const stale = !reading || clock - reading.at > 5000;
-      return <article className={`eos-monitor__card eos-monitor__card--${kind}`} key={entry.path}><header><h3>{entry.node.label || entry.node.id}</h3><span className={stale ? 'eos-monitor__stale' : 'eos-monitor__live'}>{stale ? copy.stale : copy.live}</span></header><p><code>{kind}</code> · {copy.health}: {reading?.health?.state || '—'}</p>{reading?.health?.message && <p>{reading.health.message}</p>}{reading?.error && <p role="alert">{reading.error}</p>}{kind !== 'camera' && <><h4>{copy.observation}</h4><Observation kind={kind} value={reading?.observation} /></>}</article>;
+      const kind = hardwareKind(entry.node.node_type); const reading = readings[entry.path]; const badge = monitorBadge(reading, clock);
+      return <article className={`eos-monitor__card eos-monitor__card--${kind}`} key={entry.path}><header><h3>{entry.node.label || entry.node.id}</h3><span className={`eos-monitor__${badge}`}>{copy[badge]}</span></header><p><code>{kind}</code> · {copy.status}: {reading?.status?.state || '—'} · {copy.health}: {reading?.health?.state || '—'}</p>{reading?.status?.active_command_id && <p>{copy.command}: <code>{reading.status.active_command_id}</code></p>}{reading?.health?.message && <p>{reading.health.message}</p>}{reading?.error && <p role="alert">{reading.error}</p>}{kind !== 'camera' && <><h4>{copy.observation}</h4><Observation kind={kind || ''} value={reading?.observation} />{reading?.observationAt && <p>{copy.update}: {new Date(reading.observationAt).toLocaleTimeString()}</p>}</>}</article>;
     })}</div> : <p>{copy.noHardware}</p>}</section>
     <section className="eos-workbench__section eos-monitor__camera"><h2>{copy.camera}</h2>{cameras.length ? <><label className="eos-control__field"><span>{copy.choose}</span><select value={selectedCamera} onChange={(event) => setSelectedCamera(event.target.value)}>{cameras.map((entry) => <option key={entry.path} value={entry.path}>{entry.node.label || entry.node.id}</option>)}</select></label><div className="eos-monitor__canvas"><canvas ref={canvas} aria-label={`${copy.camera}: ${cameras.find((entry) => entry.path === selectedCamera)?.node.label || ''}`} /></div>{frame ? <p><span className={clock - frame.at > 5000 ? 'eos-monitor__stale' : 'eos-monitor__live'}>{clock - frame.at > 5000 ? copy.stale : copy.live}</span> · {copy.dimensions}: {frame.value.width_px} × {frame.value.height_px} · {copy.sequence}: {String(frame.value.meta?.sequence ?? '—')} · {copy.depth}: {frame.value.depth ? 'yes' : 'no'} · {copy.update}: {new Date(frame.at).toLocaleTimeString()}</p> : <p>{copy.noData}</p>}</> : <p>{copy.noCamera}</p>}</section>
   </main>;
