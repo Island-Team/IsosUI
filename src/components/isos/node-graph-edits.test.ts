@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { NodeGraph, NodeTypeDefinition } from '@/services/isos/node-graph';
-import { addNode, connectNodes, disconnectInput, graphNodes, nodePath, removeNode, renameNode } from './node-graph-edits';
+import { addNode, connectNodes, disconnectInput, graphNodes, nextNodeId, nodePath, removeNode, renameNode } from './node-graph-edits';
 
 const dispatcher: NodeTypeDefinition = { id: 'eos.dispatcher.control@v1.0', core: 'eos', layer: 'dispatcher', group: 'control', kind: 'software', lifecycle: 'internal', capabilities: ['admission'], settings: [], inputs: [], outputs: [{ name: 'base_command', data_type: 'base_movement', required: false }] };
 const base: NodeTypeDefinition = { id: 'eos.hardware.base@v1.0', core: 'eos', layer: 'hardware', group: 'base', kind: 'base', lifecycle: 'adapter', capabilities: ['body_velocity'], settings: [], inputs: [{ name: 'command', data_type: 'base_movement', required: true }], outputs: [{ name: 'status', data_type: 'status', required: false }] };
@@ -8,6 +8,13 @@ const camera: NodeTypeDefinition = { id: 'eos.hardware.camera@v1.0', core: 'eos'
 const empty = (): NodeGraph => ({ version: '2.0.0', robot: { id: 'robot', name: 'Robot' }, cores: {} });
 
 describe('v2 node graph edits', () => {
+  it('uses the final node type and next free index as the default ID', () => {
+    const first = nextNodeId(empty(), camera);
+    expect(first).toBe('camera_1');
+    const graph = addNode(empty(), camera, first);
+    expect(nextNodeId(graph, camera)).toBe('camera_2');
+    expect(graphNodes(addNode(graph, camera, 'camera_2'), [camera])).toHaveLength(2);
+  });
   it('places an instance under its registered core, layer and group', () => {
     const graph = addNode(empty(), camera, 'front');
     const entry = graphNodes(graph, [camera])[0];

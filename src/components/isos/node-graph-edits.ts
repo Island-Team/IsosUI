@@ -1,7 +1,19 @@
 import type { NodeGraph, NodeInstance, NodeSource, NodeTypeDefinition } from '@/services/isos/node-graph';
 
 export interface GraphNode { path: string; node: NodeInstance; definition?: NodeTypeDefinition }
-export const nodeIdPattern = /^[a-z][a-z0-9-]{0,47}$/;
+export const nodeIdPattern = /^[a-z][a-z0-9_-]{0,47}$/;
+
+/** Choose a stable type-and-index default without colliding with any graph node. */
+export function nextNodeId(graph: NodeGraph, definition: NodeTypeDefinition): string {
+  const type = definition.id.split('@')[0].split('.').pop()?.replace(/[^a-z0-9-]/g, '-') || 'node';
+  const used = new Set(graphNodes(graph, []).map((entry) => entry.node.id));
+  for (let index = 1; index < 100000; index += 1) {
+    const suffix = `_${index}`;
+    const candidate = `${type.slice(0, 48 - suffix.length)}${suffix}`;
+    if (!used.has(candidate)) return candidate;
+  }
+  throw new Error('No available node ID.');
+}
 
 export function nodePath(definition: Pick<NodeTypeDefinition, 'core' | 'layer' | 'group'>, id: string): string {
   return `cores/${definition.core}/layers/${definition.layer}/groups/${definition.group}/nodes/${id}`;
