@@ -52,4 +52,4 @@ EOS 控制工作台在 Node.js 22 环境下通过 `npm test`（25 个测试）�
 
 节点图工作台与视觉客户端检查：`npm test`（41 个测试）、`npm run build`（类型检查及本地、托管构建）和 `git diff --check` 均通过。完整输出保存在 `logs/test/20261030-graph-vision/`。二进制帧测试覆盖元数据、尺寸限制及无效 JPEG 的拒绝情况。端到端画面流仍需运行中的 EOS 相机网关和 IsOS 节点图修订。
 
-UI 选择器与构建验证（2026-10-31）：`npm test` 通过 43 项测试；`npm run build` 通过 TypeScript 检查、本地与托管构建；`git diff --check` 通过。完整本地日志保存在忽略提交的 `logs/test/20261031-build-catalog-visuals/{test,build}.log`。选择器及程序构建控件需要配套的 IsOS v2 接口；接口不可用时，UI 会提示选项服务不可用，现有节点图字段仍可查看。
+UI 选择器与构建验证（2026-10-31）：`npm test` 通过 45 项测试；`npm run build` 通过 TypeScript 检查、本地与托管构建；`git diff --check` 通过。完整本地日志保存在忽略提交的 `logs/test/20261031-build-catalog-visuals/{test,build}.log`。选择器及程序构建控件需要配套的 IsOS v2 接口；接口不可用时，UI 会提示选项服务不可用，现有节点图字段仍可查看。
