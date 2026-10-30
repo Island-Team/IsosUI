@@ -13,13 +13,17 @@ npm test
 npm run build
 ```
 
-The development server serves the local build on port 3000. A production local build uses same-origin `/api/isos/v2`; to exercise it, serve `dist/local` from the IsOS process. The hosted build uses `http://127.0.0.1:16000/api/isos/v2` and requires the local IsOS server to allow the exact hosted origin. Start IsOS and open the editor to connect through the local port without a token. Legacy token fragments are consumed on load and held only in memory.
+The development server serves the local build on port 3000. A production local build uses same-origin `/api/isos/v2`; IsOS serves `dist/local` through its own loopback server when `ISOSUI_REPO_PATH` or `ISOS_WEB_DIST` is set. The hosted build uses `http://127.0.0.1:16000/api/isos/v2` and requires the local IsOS server to allow the exact hosted origin. The editor connects by address and port without a URL token or Authorization header.
 
 ## Workbench
 
-The graph fills the editor viewport. The icon toolbar opens Node Library, Configuration, Connections, Diagnostics, EOS, EGIA, and Mini Map windows; each icon has an accessible label and tooltip. Collapse Tools hides optional toolbar groups. Drag a floating window by its title, resize its lower corner, or use its title controls to collapse, float, or dock left, right, or bottom. The layout is stored in this browser only; Reset Layout restores the initial arrangement and does not edit the deployment graph. On narrow screens, windows become drawers. Standard desktop controls are about 30 px high and touch targets are at least 44×44 px.
+The workbench has Home, Graph, EOS, and EGIA pages. Home shows available IsOS-managed backend packages, setup checks, saved and active revisions, process states, run/restart/stop actions, and bounded logs. EOS and EGIA are page shells for later runtime panels. Graph reads the one authored node graph from IsOS `/api/isos/v2/node-graph` and the registered type catalog from `/api/isos/v2/node-types`. A type fixes its core, layer, group, lifecycle, configuration fields, and typed ports. Adding a node creates an instance under that type's placement. The current type definitions use `@v1.0`; the graph format remains `2.0.0` and IsosUI keeps its independent app version.
 
-Select a node to open Configuration. Built-in EOS and EGIA nodes use the typed fields returned by IsOS `/api/isos/v2/profiles`; all graph nodes also expose package, launch, and advanced JSON settings. Validate reports errors by graph path, and Apply saves a revision after validation. Refresh asks before discarding local graph edits. Undo and Redo change only the local draft.
+Select an instance to edit its identity, label, description, capabilities, and typed settings. The backend package, version, scene, and device choices come from IsOS `/backends` when available. Hardware fields have an advanced JSON editor for adapter, frame, observation, and safety bounds. Search the type library, double-click the canvas to add a type, and drag an output port to a matching input port. Each input has one provider. Ctrl+Z/Ctrl+Y undo and redo graph edits; Delete removes the selected node. Validate shows server diagnostics by graph path; Apply validates and saves a revision. Home will not run or restart while the current editor has unapplied changes. Refresh asks before discarding local edits. Canvas positions are local browser preferences, not graph data. Standard desktop controls are about 30 px high; touch controls are at least 44×44 px.
+
+Node frame colors identify process, camera, base, manipulator, dispatcher, and EGIA families. Port and wire colors identify camera data, observations, movement, requests, outcomes, health, status, context, and plans. Labels and port shapes repeat these distinctions. The canvas shows brief configuration summaries and never renders live payloads as node settings.
+
+The graph is configuration, not live camera or movement data. IsOS applies a saved revision to managed processes on restart. The editor does not invoke a second actuator route or write hardware payloads.
 
 ## Build contract
 

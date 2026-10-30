@@ -6,7 +6,9 @@ Follow the shared [Island conventions v1.2.0](../Island-eos/docs/island/conventi
 
 - Use npm, React 18, strict TypeScript, SCSS, and Webpack. Keep network calls in `src/services/`; components must not fetch directly.
 - Preserve `/en/isos` and `/cn/isos` as editor URLs. Keep both languages in the editor copy. Use the existing theme token names and accessible controls.
-- The supported server contract is IsOS `/api/isos/v2`. The local build uses same-origin requests. The hosted build uses `http://127.0.0.1:16000` only. Connect to the loopback port directly; keep any legacy bearer token in memory, consume URL fragments immediately, and never send it to another host.
+- The supported server contract is IsOS `/api/isos/v2`. The local build uses same-origin requests. The hosted build uses `http://127.0.0.1:16000` only. Connect to the loopback port directly without a URL token or Authorization header.
 - `npm run build` must produce `dist/local` and `dist/hosted`, each with `index.html` and `manifest.json`. Hosted asset URLs start `/isosui/`; local URLs start `/`.
 - `dist/` and `node_modules/` are generated and must not be committed. Releases are deliberate manual workflow runs from a version tag. The release workflow creates checksummed archives; do not publish from feature branches.
 - Use Conventional Commits and small reviewable commits. Before pushing, run `npm test`, `npm run build`, and `git diff --check`.
+
+The v2 workbench has Home, Graph, EOS, and EGIA pages. Graph edits the single IsOS/EOS/EGIA `2.0.0` graph with registered `v1.0` node types. Keep process ownership in IsOS, hardware adapters in EOS, and EGIA common nodes design-only until their runtime exists. Use type-specific configuration forms and summaries; live camera frames and movement commands are data on typed ports, not node settings. Persist canvas layout separately from graph configuration. Preserve typed wire labels, shapes, and line styles alongside color. Home reads package readiness and process state from IsOS APIs; it must not launch a backend itself. Update English and Chinese UI copy together, and test both local and hosted bundles.

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { IsosManager } from '@/components/isos/IsosManager';
+import { NodeGraphManager } from '@/components/isos/NodeGraphManager';
+import { IsosHome } from '@/components/isos/IsosHome';
+import '@/components/isos/workbench.scss';
 import type { Language } from '@/types';
 import '@/styles/fonts.css';
 import '@/styles/global.scss';
@@ -31,12 +33,32 @@ applyDocumentLanguage(initialLanguage);
 
 function App(): React.ReactElement {
   const [lang, setLang] = useState<Language>(initialLanguage);
+  const [graphDirty, setGraphDirty] = useState(false);
+  type Page = 'home' | 'graph' | 'eos' | 'egia';
+  const [page, setPage] = useState<Page>(() => {
+    const segment = new URLSearchParams(window.location.search).get('page');
+    return segment === 'graph' || segment === 'eos' || segment === 'egia' ? segment : 'home';
+  });
+  const openPage = (next: Page): void => {
+    window.history.pushState({ page: next }, '', `/${lang}/isos${next === 'home' ? '' : `?page=${next}`}`);
+    setPage(next);
+  };
   const changeLanguage = (value: Language): void => {
-    window.history.replaceState(window.history.state, '', `/${value}/isos`);
+    window.history.replaceState(window.history.state, '', `/${value}/isos${page === 'home' ? '' : `?page=${page}`}`);
     applyDocumentLanguage(value);
     setLang(value);
   };
-  return <IsosManager lang={lang} onLanguageChange={changeLanguage} />;
+  React.useEffect(() => {
+    const onPop = (): void => { const segment = new URLSearchParams(window.location.search).get('page'); setPage(segment === 'graph' || segment === 'eos' || segment === 'egia' ? segment : 'home'); };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+  const labels = lang === 'cn' ? { home: '首页', graph: '节点图', eos: 'EOS', egia: 'EGIA', language: '语言', shell: '此运行面板将在对应核心可用时提供。节点配置请使用节点图页面。' } : { home: 'Home', graph: 'Graph', eos: 'EOS', egia: 'EGIA', language: 'Language', shell: 'This runtime panel will be available with its core. Configure nodes on the Graph page.' };
+  return <div className="isos-workbench"><nav className="isos-workbench__nav" aria-label="IsOS"><strong>ISOS<span> / Aether</span></strong><div role="group" aria-label="Pages">{(['home', 'graph', 'eos', 'egia'] as Page[]).map((name) => <button type="button" key={name} className={page === name ? 'active' : ''} aria-current={page === name ? 'page' : undefined} onClick={() => openPage(name)}>{labels[name]}</button>)}</div><button type="button" onClick={() => changeLanguage(lang === 'en' ? 'cn' : 'en')} aria-label={labels.language}>{lang === 'en' ? '中文' : 'EN'}</button></nav>
+    {page === 'home' && <IsosHome lang={lang} onOpenGraph={() => openPage('graph')} graphDirty={graphDirty} />}
+    <div className="isos-workbench__graph-view" hidden={page !== 'graph'}><NodeGraphManager lang={lang} onDirtyChange={setGraphDirty} /></div>
+    {(page === 'eos' || page === 'egia') && <main className="isos-workbench__shell"><p className="isos-eyebrow">{page.toUpperCase()} · Aether v2</p><h1>{labels[page]}</h1><p>{labels.shell}</p><button type="button" onClick={() => openPage('graph')}>{labels.graph}</button></main>}
+  </div>;
 }
 
 const root = document.getElementById('root');

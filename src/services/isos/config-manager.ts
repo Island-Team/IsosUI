@@ -1,6 +1,5 @@
 /** Versioned configuration API hosted by the local IsOS process. */
 const BASE = ISOSUI_TARGET === 'hosted' ? 'http://127.0.0.1:16000/api/isos/v2' : '/api/isos/v2';
-let token = '';
 
 export interface IsosProfilePort { name: string; type: string; required?: boolean; contract?: string }
 export interface IsosSettingField { path: string; type: 'string' | 'absolute_path' | 'integer' | 'number' | 'boolean' | 'enum'; label?: string; description?: string; required?: boolean; default?: unknown; min?: number; max?: number; options?: string[]; read_only?: boolean }
@@ -46,25 +45,14 @@ export interface IsosValidation { valid: boolean; diagnostics: IsosDiagnostic[] 
 interface Envelope<T> { schema_version: 2; ok: boolean; data: T | null; error: string | null }
 type LoopbackRequestInit = RequestInit & { targetAddressSpace?: 'loopback' };
 
-/** Consume the one-time URL fragment before the browser records navigation. */
-export function consumeIsosToken(): boolean {
-  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-  const fromFragment = hash.get('token');
-  if (fromFragment) {
-    token = fromFragment;
-    window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}`);
-  }
-  return Boolean(token);
-}
-
-async function request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+export async function request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   let response: Response;
   try {
     const options: LoopbackRequestInit = {
       method,
       credentials: 'omit',
       cache: 'no-store',
-      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+      headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       // Chrome uses this hint for HTTPS-to-HTTP loopback permission and address verification.
       ...(ISOSUI_TARGET === 'hosted' ? { mode: 'cors' as const, targetAddressSpace: 'loopback' as const } : {}),
@@ -77,12 +65,14 @@ async function request<T>(path: string, method = 'GET', body?: unknown): Promise
   }
   let envelope: Envelope<T> | null = null;
   try { envelope = await response.json() as Envelope<T>; } catch { /* HTTP failures can be plain text. */ }
+  if (response.ok && !envelope) {
+    throw new Error('IsOS returned a page instead of API data. Stop the older IsOS server and run isos init again.');
+  }
   if (envelope && envelope.schema_version !== 2) {
     throw new Error('This IsosUI build needs the IsOS v2 API. Update IsOS or use a compatible UI release.');
   }
   if (!response.ok || !envelope?.ok || envelope.data === null) {
     if (response.status === 409) throw new Error('This graph changed in another editor. Refresh before applying.');
-    if (response.status === 401) throw new Error('This IsOS version requires a token. Update IsOS to connect through the local port.');
     throw new Error(envelope?.error || `IsOS request failed (${response.status}).`);
   }
   return envelope.data;

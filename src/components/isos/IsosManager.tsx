@@ -7,7 +7,7 @@ import { WorkbenchWindow } from './WorkbenchWindow';
 import { createGraphNode, editGraphNode } from './graph-edits';
 import { defaultLayout, loadLayout, saveLayout, WINDOW_IDS, type WindowId, type WindowPlacement, type WorkbenchLayout } from './workbench-layout';
 import {
-  applyIsosGraph, consumeIsosToken, getIsosGraph, getIsosProfiles, getIsosVersion, validateIsosGraph,
+  applyIsosGraph, getIsosGraph, getIsosProfiles, getIsosVersion, validateIsosGraph,
   type IsosDiagnostic, type IsosEdge, type IsosGraph, type IsosNode, type IsosProfile,
 } from '@/services/isos/config-manager';
 import type { Language } from '@/types';
@@ -147,7 +147,6 @@ export const IsosManager: React.FC<IsosManagerProps> = ({ lang, onLanguageChange
     finally { setBusy(false); }
   }, [dirty, copy.discard]);
   useEffect(() => {
-    consumeIsosToken();
     void refresh();
   }, []);
 
