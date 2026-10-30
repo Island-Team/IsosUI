@@ -21,6 +21,7 @@ export interface NodeInstance {
   node_type: string;
   label: string;
   description: string;
+  package?: { id: string; version: string };
   capabilities?: string[];
   settings?: Record<string, unknown>;
   inputs?: Record<string, NodeSource>;
@@ -49,14 +50,34 @@ export interface ProcessStatus {
   processes: { id: string; pid?: number; restarts: number; state?: string; last_error?: string | null }[];
 }
 export interface BackendPackage { id: string; version: string; linked: boolean; scenes: string[]; devices: string[]; ready: boolean; issues: string[] }
+export interface InstalledPackage { schema_version: 1; id: string; version: string; source_commit: string | null; asset_sha256: string | null; local_link: string | null }
+export interface NodeSetDefinition {
+  package: { id: string; version: string };
+  id: string;
+  parameters: Record<string, { type: 'string'; default?: string }>;
+  nodes: { ref: string; core: string; layer: string; group?: string; profile: NodeInstance }[];
+}
+export interface NodeSetPreview { graph: NodeGraph; added_paths: string[] }
 export interface SetupStatus { ready?: boolean; issues?: string[]; [key: string]: unknown }
 export interface ProcessLog { node?: string; lines?: string[]; text?: string; [key: string]: unknown }
 
+export function backendPackagePin(node: NodeInstance): { id: string; version: string } | null {
+  if (node.node_type === 'eos.process.mujoco@v1.0' && node.package) return node.package;
+  if (node.node_type === 'eos.process.backend@v1.0' && typeof node.settings?.package === 'string' && typeof node.settings?.version === 'string') {
+    return { id: node.settings.package, version: node.settings.version };
+  }
+  return null;
+}
+
+export function backendSceneChoices(node: NodeInstance, backends: BackendPackage[]): string[] {
+  const pin = backendPackagePin(node);
+  return pin ? backends.filter((backend) => backend.id === pin.id && backend.version === pin.version).flatMap((backend) => backend.scenes) : [];
+}
+
 export function requiredBackend(graph: NodeGraph): { id: string; version: string; scene?: string } | null {
   for (const core of Object.values(graph.cores)) for (const layer of Object.values(core.layers)) for (const group of Object.values(layer.groups)) for (const node of Object.values(group.nodes)) {
-    if (node.node_type === 'eos.process.backend@v1.0' && typeof node.settings?.package === 'string' && typeof node.settings?.version === 'string') {
-      return { id: node.settings.package, version: node.settings.version, scene: typeof node.settings.scene === 'string' ? node.settings.scene : undefined };
-    }
+    const pin = backendPackagePin(node);
+    if (pin) return { ...pin, scene: typeof node.settings?.scene === 'string' ? node.settings.scene : undefined };
   }
   return null;
 }
@@ -68,7 +89,8 @@ export function graphWithBackendScene(graph: NodeGraph, id: string, version: str
     ...core, layers: Object.fromEntries(Object.entries(core.layers).map(([layerName, layer]) => [layerName, {
       ...layer, groups: Object.fromEntries(Object.entries(layer.groups).map(([groupName, group]) => [groupName, {
         ...group, nodes: Object.fromEntries(Object.entries(group.nodes).map(([nodeName, node]) => {
-          if (node.node_type !== 'eos.process.backend@v1.0' || node.settings?.package !== id || node.settings?.version !== version) return [nodeName, node];
+          const pin = backendPackagePin(node);
+          if (!pin || pin.id !== id || pin.version !== version) return [nodeName, node];
           matches += 1;
           return [nodeName, { ...node, settings: { ...node.settings, scene } }];
         })),
@@ -81,13 +103,18 @@ export function graphWithBackendScene(graph: NodeGraph, id: string, version: str
 
 export function getNodeGraph(): Promise<NodeGraphDocument> { return request('/node-graph'); }
 export function getNodeTypes(): Promise<{ types: NodeTypeDefinition[] }> { return request('/node-types'); }
+export function getNodeSets(): Promise<{ sets: NodeSetDefinition[] }> { return request('/node-sets'); }
+export function getInstalledPackages(): Promise<{ installed: InstalledPackage[] }> { return request('/packages'); }
+export function previewNodeSet(set: NodeSetDefinition, graph: NodeGraph, values: Record<string, string>, replaceLegacyMujoco = false): Promise<NodeSetPreview> {
+  return request('/node-sets/preview', 'POST', { package: set.package, set_id: set.id, graph, values, ...(replaceLegacyMujoco ? { replace_legacy_mujoco: true } : {}) });
+}
 export function getProcessStatus(): Promise<ProcessStatus> { return request('/process-status'); }
 export function getBackends(): Promise<{ backends: BackendPackage[] }> { return request('/backends'); }
 export function installBackend(id: string, version: string): Promise<unknown> {
   return request('/packages/install', 'POST', { id, version });
 }
-export function linkBackend(id: string, version: string, path: string): Promise<unknown> {
-  return request('/packages/link', 'POST', { id, version, path });
+export function linkBackend(id: string, version: string, path: string, manifest?: string): Promise<unknown> {
+  return request('/packages/link', 'POST', { id, version, path, ...(manifest ? { manifest } : {}) });
 }
 export function getSetupStatus(): Promise<SetupStatus> { return request('/setup-status'); }
 export function controlProcesses(operation: 'run' | 'stop' | 'restart', revision?: string): Promise<ProcessStatus> {
