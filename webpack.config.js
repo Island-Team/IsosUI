@@ -36,7 +36,7 @@ module.exports = (env = {}) => {
       new webpack.DefinePlugin({ ISOSUI_TARGET: JSON.stringify(target), ISOSUI_API_ORIGIN: JSON.stringify(apiOrigin) }),
       new HtmlWebpackPlugin({ template: './public/index.html', favicon: './src/assets/brand/IslandTeam.png' }),
     ],
-    devServer: { historyApiFallback: true, host, port, allowedHosts: ['127.0.0.1'] },
+    devServer: { historyApiFallback: true, host, port, allowedHosts: ['127.0.0.1'], client: { overlay: { errors: true, warnings: false } } },
     performance: { hints: 'warning', maxAssetSize: 350 * 1024, maxEntrypointSize: 244 * 1024 },
   };
 };
