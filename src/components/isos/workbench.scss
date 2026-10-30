@@ -34,6 +34,13 @@
 .isos-home__cards { list-style: none; padding: 0; }
 .isos-home__cards > li { display: flex; flex-direction: column; gap: 4px; padding: 12px; border: 1px solid var(--border); border-radius: 7px; }
 .isos-home__cards code { color: var(--text-secondary); }
+.isos-home__package-required { padding: 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-secondary); }
+.isos-home__package-required code { overflow-wrap: anywhere; }
+.isos-home__package-install { display: grid; gap: 8px; margin-top: 12px; }
+.isos-home__package-install label { font-size: .82rem; }
+.isos-home__package-install input { width: 100%; min-height: 34px; padding: 6px 9px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--bg-elevated); }
+.isos-home__package-install > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.isos-home__package-install button:first-child { border-color: var(--primary); }
 .isos-ready { color: var(--success); } .isos-attention { color: var(--warning); }
 .isos-home__processes > ul { padding: 0; list-style: none; }
 .isos-home__processes > ul li { padding: 10px 0; border-top: 1px solid var(--border); }

@@ -52,10 +52,25 @@ export interface BackendPackage { id: string; version: string; linked: boolean; 
 export interface SetupStatus { ready?: boolean; issues?: string[]; [key: string]: unknown }
 export interface ProcessLog { node?: string; lines?: string[]; text?: string; [key: string]: unknown }
 
+export function requiredBackend(graph: NodeGraph): { id: string; version: string; scene?: string } | null {
+  for (const core of Object.values(graph.cores)) for (const layer of Object.values(core.layers)) for (const group of Object.values(layer.groups)) for (const node of Object.values(group.nodes)) {
+    if (node.node_type === 'isos.process.backend@v1.0' && typeof node.settings?.package === 'string' && typeof node.settings?.version === 'string') {
+      return { id: node.settings.package, version: node.settings.version, scene: typeof node.settings.scene === 'string' ? node.settings.scene : undefined };
+    }
+  }
+  return null;
+}
+
 export function getNodeGraph(): Promise<NodeGraphDocument> { return request('/node-graph'); }
 export function getNodeTypes(): Promise<{ types: NodeTypeDefinition[] }> { return request('/node-types'); }
 export function getProcessStatus(): Promise<ProcessStatus> { return request('/process-status'); }
 export function getBackends(): Promise<{ backends: BackendPackage[] }> { return request('/backends'); }
+export function installBackend(id: string, version: string): Promise<unknown> {
+  return request('/packages/install', 'POST', { id, version });
+}
+export function linkBackend(id: string, version: string, path: string): Promise<unknown> {
+  return request('/packages/link', 'POST', { id, version, path });
+}
 export function getSetupStatus(): Promise<SetupStatus> { return request('/setup-status'); }
 export function controlProcesses(operation: 'run' | 'stop' | 'restart', revision?: string): Promise<ProcessStatus> {
   return request('/process-control', 'POST', { schema_version: 2, operation, ...(revision ? { revision } : {}) });
