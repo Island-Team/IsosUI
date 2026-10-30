@@ -14,7 +14,17 @@ npm test
 npm run build
 ```
 
-`npm run dev` starts the development frontend and `npm start` starts the production-mode frontend. Both bind to `127.0.0.1:16001` and call IsOS at `http://127.0.0.1:16000/api/isos/v2` and EOS at `http://127.0.0.1:16020/api/eos/v2`. IsOS supervises `npm start` when launching the local workbench; Ctrl+C stops it with the IsOS service. To use different loopback ports, set `ISOSUI_PORT`, `ISOSUI_API_ORIGIN=http://127.0.0.1:<api-port>`, and `ISOSUI_EOS_API_ORIGIN=http://127.0.0.1:<eos-port>` before launching npm. API origins are embedded when Webpack compiles the frontend; only HTTP loopback origins are accepted. IsOS and EOS allow the frontend's exact origin in CORS. The editor uses no URL token or Authorization header.
+`npm run dev` starts the standalone development frontend and `npm start` starts the standalone production-mode Webpack server. Both bind to `127.0.0.1:16001` and call IsOS at `http://127.0.0.1:16000/api/isos/v2` and EOS at `http://127.0.0.1:16020/api/eos/v2`. To use different loopback ports, set `ISOSUI_PORT`, `ISOSUI_API_ORIGIN=http://127.0.0.1:<api-port>`, and `ISOSUI_EOS_API_ORIGIN=http://127.0.0.1:<eos-port>` before launching npm. API origins are embedded when Webpack compiles the frontend; only HTTP loopback origins are accepted. IsOS and EOS allow the frontend's exact origin in CORS. The editor uses no URL token or Authorization header.
+
+For an IsOS-managed workbench, build and select the local bundle, then run `isos serve`:
+
+```bash
+ISOSUI_REPO_PATH="$PWD" isos build isosui
+isos version select isosui <printed-sha256>
+isos serve
+```
+
+`isos build isosui` runs `npm ci` and `npm run build:local`, stages an immutable candidate, and leaves the running selection unchanged. Use the SHA-256 printed by the build command to select an exact candidate, especially if more than one build shares a source commit. Normal `isos serve` hosts that selected static bundle at `127.0.0.1:16001`; product mode requires a clean source build but needs neither npm nor this source checkout at launch. In dev mode, `ISOSUI_REPO_PATH="$PWD" isos serve --ui-live` explicitly supervises `npm start` instead. Stop IsOS-owned listeners with `isos stop` or Ctrl+C in the `isos serve` terminal. Stop a separately launched npm server in its own terminal before starting IsOS on the same port.
 
 ## Workbench
 
@@ -43,9 +53,9 @@ The EOS Vision section lists active compatible camera gates from `/api/eos/v2/vi
 | `npm run build:local` | `dist/local/` | `/` | IsOS `http://127.0.0.1:16000/api/isos/v2`, EOS `http://127.0.0.1:16020/api/eos/v2` |
 | `npm run build:hosted` | `dist/hosted/` | `/isosui/` | IsOS `http://127.0.0.1:16000/api/isos/v2`, EOS `http://127.0.0.1:16020/api/eos/v2` |
 
-Each output has `index.html`, `assets/`, `IslandTeam.png`, and `manifest.json`. The manifest declares `schema_version: 1`, `version`, `source_commit`, `api_schema_version: 2`, and `build_target`. The npm server serves `/en/isos` and `/cn/isos` locally. Island-web places hosted assets under `/isosui/` and copies the hosted HTML to its `/en/isos` and `/cn/isos` static routes so URL fragments remain intact.
+Each output has `index.html`, `assets/`, `IslandTeam.png`, and `manifest.json`. The manifest declares `schema_version: 1`, `version`, `source_commit`, `api_schema_version: 2`, and `build_target`. The standalone npm server and IsOS's selected static server serve `/en/isos` and `/cn/isos` locally. Island-web places hosted assets under `/isosui/` and copies the hosted HTML to its `/en/isos` and `/cn/isos` static routes so URL fragments remain intact.
 
-The manual release workflow accepts an existing `v<package version>` tag. It builds both targets and publishes `isosui-local-<tag>.tar.gz`, `isosui-hosted-<tag>.tar.gz`, and `SHA256SUMS`. A release is not required to develop or build from a pinned source commit. After publishing, it dispatches an `isosui-release` event to Island-web. Configure a fine-grained token for `Island-Team/Island-web` with Contents and Pull requests write access as `ISLAND_WEB_DISPATCH_TOKEN` in IsosUI and `ISOSUI_MIRROR_TOKEN` in Island-web. Island-web verifies the hosted archive, builds the pinned website, and opens a PR; squash merge that PR after checks pass to trigger the normal website deployment.
+The manual release workflow accepts an existing `v<package version>` tag. It builds both targets and publishes `isosui-local-<tag>.tar.gz`, `isosui-hosted-<tag>.tar.gz`, and `SHA256SUMS`. A release is not required to develop or build from a pinned source commit. After publishing, it dispatches an `isosui-release` event to Island-web. Configure a fine-grained token for `Island-Team/Island-web` with Contents write access as `ISLAND_WEB_DISPATCH_TOKEN` in IsosUI. Island-web verifies the hosted archive, builds the pinned website, and opens a PR; squash merge that PR after checks pass to trigger the normal website deployment.
 
 The standalone frontend was checked on Node.js 22 with `npm test`, `npm run build`, and `npm start`; `/en/isos` returned HTTP 200 at `127.0.0.1:16001`, and the local bundle contained the `127.0.0.1:16000` API address. Complete output is saved locally under `logs/test/20261030-npm-frontend/`.
 
@@ -64,3 +74,5 @@ Package node-set UI checks: `npm test` (31 tests), `npm run build` (typecheck pl
 Graph workbench and Vision client checks: `npm test` (41 tests), `npm run build` (typecheck plus local and hosted bundles), and `git diff --check` passed. Complete output is under `logs/test/20261030-graph-vision/`. The binary frame tests cover bounded metadata, dimensions, and JPEG rejection. End-to-end streaming requires a running EOS camera gate and IsOS graph revision.
 
 UI selector and build verification (2026-10-31): `npm test` passed 45 tests, `npm run build` passed TypeScript checks and both local/hosted bundles, and `git diff --check` passed. Full output: `logs/test/20261031-build-catalog-visuals/{test,build}.log` (local, ignored). The selector and binary build controls require the matching IsOS v2 endpoints; when unavailable, the UI reports that the option service is unavailable and leaves existing graph fields readable.
+
+Documentation alignment check (2026-10-31): `npm test` passed 49 tests, `npm run build` passed TypeScript checks and both bundle/manifest checks, and `git diff --check` passed. Full output is in the ignored `logs/test/20261031-docs-code-alignment/` directory. The test output includes a Sass legacy JavaScript API deprecation warning.

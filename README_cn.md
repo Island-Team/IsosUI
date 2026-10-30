@@ -14,7 +14,17 @@ npm test
 npm run build
 ```
 
-`npm run dev` 启动开发前端，`npm start` 启动生产模式前端。两者默认监听 `127.0.0.1:16001`，直接请求 IsOS `http://127.0.0.1:16000/api/isos/v2` 和 EOS `http://127.0.0.1:16020/api/eos/v2`。IsOS 启动本地工作台时监管 `npm start`；Ctrl+C 会一并停止前端和 IsOS 服务。可通过 `ISOSUI_PORT`、`ISOSUI_API_ORIGIN=http://127.0.0.1:<API 端口>` 和 `ISOSUI_EOS_API_ORIGIN=http://127.0.0.1:<EOS 端口>` 指定其他环回端口。Webpack 编译时写入 API 地址，并仅接受 HTTP 环回地址。IsOS 和 EOS 必须允许前端的准确来源进行跨域请求。编辑器无需 URL 令牌或 Authorization 请求头。
+`npm run dev` 启动独立的开发前端，`npm start` 启动独立的生产模式 Webpack 服务。两者默认监听 `127.0.0.1:16001`，直接请求 IsOS `http://127.0.0.1:16000/api/isos/v2` 和 EOS `http://127.0.0.1:16020/api/eos/v2`。可通过 `ISOSUI_PORT`、`ISOSUI_API_ORIGIN=http://127.0.0.1:<API 端口>` 和 `ISOSUI_EOS_API_ORIGIN=http://127.0.0.1:<EOS 端口>` 指定其他环回端口。Webpack 编译时写入 API 地址，并仅接受 HTTP 环回地址。IsOS 和 EOS 必须允许前端的准确来源进行跨域请求。编辑器无需 URL 令牌或 Authorization 请求头。
+
+使用 IsOS 管理的工作台时，先构建并选择本地构建产物，再在另一个终端启动服务：
+
+```bash
+ISOSUI_REPO_PATH="$PWD" isos build isosui
+isos version select isosui <构建输出的sha256>
+isos serve
+```
+
+`isos build isosui` 执行 `npm ci` 与 `npm run build:local`，暂存不可变的候选构建，不改变运行中的选择。使用构建命令输出的 SHA-256 选择准确的候选版本；同一源码提交可能对应多个构建。通常的 `isos serve` 在 `127.0.0.1:16001` 提供已选静态构建；产品模式要求从干净源码构建，但启动时不需要 npm 或本源码目录。开发模式可显式执行 `ISOSUI_REPO_PATH="$PWD" isos serve --ui-live`，由 IsOS 监管 `npm start`。使用 `isos stop` 或在 `isos serve` 终端按 Ctrl+C 可停止 IsOS 拥有的监听服务。若已独立启动 npm 服务，先在它的终端停止，再在同一端口启动 IsOS。
 
 ## 工作台
 
@@ -36,9 +46,9 @@ EOS MuJoCo 进程检查器同时支持软件包提供的 `eos.process.mujoco@v1.
 
 EOS“视觉”区域从 `/api/eos/v2/vision/gates` 列出活动且兼容的相机网关。IsOS 拥有的 `isos.ui.vision@v1.0` 节点（路径 `isos/ui/panel/<id>`；旧 `isosui.system.vision@v1.0` ID 仅作迁移别名）可以通过可选 `preview` 输入边指定初始网关，但仅在该图修订正在运行时使用；若运行的是旧修订，来源选择器只使用已发现的网关，不套用过期默认值。来源选择器仍可连接任意活动且兼容的网关。点击连接后，以活动修订和视觉节点的可选帧率、宽度及 JPEG 质量设置打开只读 `/api/eos/v2/vision/ws` 流。每帧限制为最多 8 MiB JPEG 加元数据，包含长度前缀 JSON 元数据和 JPEG 字节；面板显示实际接收帧率与连接错误。关闭或切换来源时会关闭旧连接。托管在 HTTPS 页面的版本可能需要浏览器允许访问本机环回地址。
 
-两个构建目录都包含 `index.html`、`assets/`、`IslandTeam.png` 和 `manifest.json`。清单包含 UI 版本、源码提交、构建目标和 IsOS API v2 版本。npm 服务在本机提供 `/en/isos` 与 `/cn/isos`；Island-web 在对应路径提供托管 HTML，并把资源放在 `/isosui/`。
+两个构建目录都包含 `index.html`、`assets/`、`IslandTeam.png` 和 `manifest.json`。清单包含 `schema_version: 1`、UI 版本、源码提交、`api_schema_version: 2` 和构建目标。独立 npm 服务与 IsOS 的已选静态服务都在本机提供 `/en/isos` 与 `/cn/isos`；Island-web 在对应路径提供托管 HTML，并把资源放在 `/isosui/`。
 
-手动发布工作流从现有的 `v<package version>` 标签构建两个压缩包与 `SHA256SUMS`。普通开发和固定提交构建不需要发布版本。
+手动发布工作流从现有的 `v<package version>` 标签构建 `isosui-local-<tag>.tar.gz`、`isosui-hosted-<tag>.tar.gz` 和 `SHA256SUMS`。普通开发和固定提交构建不需要发布版本。发布后，工作流通过 IsosUI 的 `ISLAND_WEB_DISPATCH_TOKEN` 向 Island-web 发送 `isosui-release` 事件；该令牌需要 Island-web 仓库的 Contents 写入权限。Island-web 校验托管归档并创建网站更新 PR，检查通过后合并该 PR 才触发正常的网站部署。
 
 独立前端已在 Node.js 22 环境下运行 `npm test`、`npm run build` 与 `npm start`；`127.0.0.1:16001/en/isos` 返回 HTTP 200，本地构建包含 `127.0.0.1:16000` 的 API 地址。完整输出保存在本地 `logs/test/20261030-npm-frontend/`。
 
@@ -55,3 +65,5 @@ EOS 控制工作台在 Node.js 22 环境下通过 `npm test`（25 个测试）�
 节点图工作台与视觉客户端检查：`npm test`（41 个测试）、`npm run build`（类型检查及本地、托管构建）和 `git diff --check` 均通过。完整输出保存在 `logs/test/20261030-graph-vision/`。二进制帧测试覆盖元数据、尺寸限制及无效 JPEG 的拒绝情况。端到端画面流仍需运行中的 EOS 相机网关和 IsOS 节点图修订。
 
 UI 选择器与构建验证（2026-10-31）：`npm test` 通过 45 项测试；`npm run build` 通过 TypeScript 检查、本地与托管构建；`git diff --check` 通过。完整本地日志保存在忽略提交的 `logs/test/20261031-build-catalog-visuals/{test,build}.log`。选择器及程序构建控件需要配套的 IsOS v2 接口；接口不可用时，UI 会提示选项服务不可用，现有节点图字段仍可查看。
+
+文档对齐检查（2026-10-31）：`npm test` 通过 49 项测试；`npm run build` 通过 TypeScript 检查，以及两种构建产物和清单检查；`git diff --check` 通过。完整输出位于被忽略提交的 `logs/test/20261031-docs-code-alignment/` 目录。测试输出包含 Sass 旧版 JavaScript API 的弃用警告。
