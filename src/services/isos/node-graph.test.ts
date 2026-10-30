@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildEosBinaries, getInstalledPackages, getNodeOptions, getNodeSets, installBackend, linkBackend, previewNodeSet, type NodeGraph, type NodeSetDefinition } from './node-graph';
+import { buildEosBinaries, selectEosBinaries, getInstalledPackages, getNodeOptions, getNodeSets, installBackend, linkBackend, previewNodeSet, type NodeGraph, type NodeSetDefinition } from './node-graph';
 import { request } from './config-manager';
 
 vi.mock('./config-manager', () => ({ request: vi.fn() }));
@@ -51,6 +51,14 @@ describe('build and selector API', () => {
     expect(vi.mocked(request).mock.calls).toEqual([
       ['/build-binaries', 'POST', { schema_version: 2, target: 'eos', install_deps: false }],
       ['/node-options', 'POST', { schema_version: 2, graph }],
+    ]);
+  });
+  it('selects a staged EOS build against the exact saved graph revision', async () => {
+    vi.mocked(request).mockClear().mockResolvedValueOnce({ receipt: { component: 'eos', source_commit: 'abc' }, graph: { revision: 'next', graph: { version: '2.0.0', robot: { id: 'test', name: 'Test' }, cores: {} } } });
+    const result = await selectEosBinaries('abc', 'current');
+    expect(result.graph.revision).toBe('next');
+    expect(vi.mocked(request).mock.calls).toEqual([
+      ['/build-binaries/select', 'POST', { schema_version: 2, selector: 'abc', revision: 'current' }],
     ]);
   });
 });

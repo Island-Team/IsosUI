@@ -67,6 +67,7 @@ export interface LogLine { timestamp: string; level: string; source: string; mes
 export interface LogPage { lines: LogLine[]; next_cursor: string | null; rotated: boolean }
 export interface BuildReceipt { component: 'eos'; product_version: string; source_commit: string; binaries: Record<string, string>; sha256: Record<string, string> }
 export interface BuildBinariesReply { receipt: BuildReceipt; suggested_graph?: NodeGraphDocument }
+export interface SelectBinariesReply { receipt: BuildReceipt; graph: NodeGraphDocument }
 export interface AdapterFamilyOption { id: string; device_kinds: string[]; package?: { id: string; version: string }; compiled: boolean; transport: string; description: string; available: boolean; reason?: string }
 export interface PrimitiveBindingOption { node_type: string; device_kind: string; movement_types: string[]; available: boolean; reason?: string }
 export interface HardwareTargetOption { path: string; node_type: string; device_kind: string; adapter_type: string; movement_types: string[]; available: boolean; reason?: string }
@@ -133,6 +134,9 @@ export function controlProcesses(operation: 'run' | 'stop' | 'restart', revision
   return request('/process-control', 'POST', { schema_version: 2, operation, ...(revision ? { revision } : {}) });
 }
 export function buildEosBinaries(): Promise<BuildBinariesReply> { return request('/build-binaries', 'POST', { schema_version: 2, target: 'eos', install_deps: false }); }
+export function selectEosBinaries(selector: string, revision: string): Promise<SelectBinariesReply> {
+  return request('/build-binaries/select', 'POST', { schema_version: 2, selector, revision });
+}
 export function getNodeOptions(graph: NodeGraph): Promise<NodeOptions> { return request('/node-options', 'POST', { schema_version: 2, graph }); }
 export function getProcessLogs(node: string, lines = 100): Promise<ProcessLog> {
   return request(`/process-logs/${encodeURIComponent(node)}?lines=${Math.max(1, Math.min(500, Math.floor(lines)))}`);
