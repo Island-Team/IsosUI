@@ -30,14 +30,19 @@ export function hardwareKind(nodeType: string): HardwareKind | null {
 }
 
 export interface AdapterStatus { state: string; active_command_id?: string | null }
-export interface MonitorReading { status?: AdapterStatus; statusAt?: number }
-export type MonitorBadge = 'live' | 'stale' | 'stopped' | 'starting' | 'fault';
+export interface MonitorReading { status?: AdapterStatus; statusAt?: number; health?: { state: string }; healthAt?: number }
+export type MonitorBadge = 'live' | 'stale' | 'stopped' | 'starting' | 'degraded' | 'fault';
 export function monitorBadge(reading: MonitorReading | undefined, now: number): MonitorBadge {
   if (!reading?.status || !reading.statusAt || now - reading.statusAt > 5000) return 'stale';
   switch (reading.status.state) {
-    case 'ready': return 'live';
     case 'stopped': return 'stopped';
     case 'starting': return 'starting';
+    case 'ready': {
+      if (!reading.health || !reading.healthAt || now - reading.healthAt > 5000) return 'stale';
+      if (reading.health.state === 'healthy') return 'live';
+      if (reading.health.state === 'degraded') return 'degraded';
+      return 'fault';
+    }
     default: return 'fault';
   }
 }

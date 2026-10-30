@@ -33,7 +33,11 @@ describe('EOS workbench admission model', () => {
     expect(hardwareKind('eos.hardware.manipulator@v1.0')).toBe('manipulator');
     expect(hardwareKind('eos.hardware.camera@v1.0')).toBe('camera');
     expect(hardwareKind('eos.control.manual@v1.0')).toBeNull();
-    expect(monitorBadge({ status: { state: 'ready' }, statusAt: 1000 }, 1200)).toBe('live');
+    expect(monitorBadge({ status: { state: 'ready' }, statusAt: 1000, health: { state: 'healthy' }, healthAt: 1000 }, 1200)).toBe('live');
+    expect(monitorBadge({ status: { state: 'ready' }, statusAt: 1000, health: { state: 'degraded' }, healthAt: 1000 }, 1200)).toBe('degraded');
+    expect(monitorBadge({ status: { state: 'ready' }, statusAt: 1000, health: { state: 'unavailable' }, healthAt: 1000 }, 1200)).toBe('fault');
+    expect(monitorBadge({ status: { state: 'ready' }, statusAt: 1000, health: { state: 'healthy' }, healthAt: 1000 }, 7001)).toBe('stale');
+    expect(monitorBadge({ status: { state: 'ready' }, statusAt: 1000 }, 1200)).toBe('stale');
     expect(monitorBadge({ status: { state: 'stopped' }, statusAt: 1000 }, 1200)).toBe('stopped');
     expect(monitorBadge({ status: { state: 'faulted' }, statusAt: 1000 }, 1200)).toBe('fault');
     expect(monitorBadge({ status: { state: 'stopped' }, statusAt: 1000 }, 7001)).toBe('stale');

@@ -40,4 +40,4 @@ EOS MuJoCo 后端检查器提供“显示 MuJoCo 窗口”设置，在该后端�
 
 EOS 控制工作台在 Node.js 22 环境下通过 `npm test`（25 个测试）、`npm run build`（类型检查及本地/托管构建）、`git diff --check`，以及 `ISOSUI_PORT=16041 npm start` 后运行 `curl -fsSI http://127.0.0.1:16041/en/isos`（HTTP 200）。构建没有警告。完整输出保存在 `logs/test/20261030-eos-control/`。运行时控制调用需要已应用且正在运行的节点图及 EOS HTTP 桥；模拟和仿真命令测试位于 EOS 仓库。
 
-适配器状态监视器更新通过 `npm test`（26 个测试）、`npm run build`（类型检查及本地、托管构建）和 `git diff --check`。两种构建均无警告；输出保存在 `logs/test/20261030-eos-monitor-status/`。EOS 桥通过 `status` 返回 `state` 与 `active_command_id`；执行器停止后仍可保持健康并提供最近的观测。
+适配器状态监视器更新通过 `npm test`（26 个测试）、`npm run build`（类型检查及本地、托管构建）和 `git diff --check`。两种构建均无警告；输出保存在 `logs/test/20261030-eos-monitor-status/`。EOS 桥通过 `status` 返回 `state` 与 `active_command_id`；执行器停止后仍可保持健康并提供最近的观测。只有状态为新的 `ready` 且健康为新的 `healthy` 时才显示实时。所有目标恢复实时前，手动、原语和技能调用均不可用；面板提示重启 EOS 以重新启用已停止的目标。

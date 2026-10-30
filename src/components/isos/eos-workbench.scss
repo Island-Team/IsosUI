@@ -40,11 +40,12 @@
 .eos-monitor__card header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .eos-monitor__card h3 { margin: 0; font-size: .96rem; }
 .eos-monitor__card p { font-size: .78rem; color: var(--text-secondary); }
-.eos-monitor__live, .eos-monitor__stale, .eos-monitor__stopped, .eos-monitor__starting, .eos-monitor__fault { font: 700 .65rem var(--font-mono, monospace); text-transform: uppercase; }
+.eos-monitor__live, .eos-monitor__stale, .eos-monitor__stopped, .eos-monitor__starting, .eos-monitor__degraded, .eos-monitor__fault { font: 700 .65rem var(--font-mono, monospace); text-transform: uppercase; }
 .eos-monitor__live { color: var(--success); }
 .eos-monitor__stale { color: var(--warning); }
 .eos-monitor__stopped { color: var(--text-secondary); }
 .eos-monitor__starting { color: var(--warning); }
+.eos-monitor__degraded { color: var(--warning); }
 .eos-monitor__fault { color: var(--error); }
 .eos-monitor__metrics { display: grid; grid-template-columns: 1fr auto; gap: 5px 12px; font: .73rem var(--font-mono, monospace); }
 .eos-monitor__metrics dt { color: var(--text-secondary); }
