@@ -4,8 +4,10 @@
 .isos-workbench__graph-view { flex: 1; min-height: 0; display: flex; }
 .isos-workbench__graph-view[hidden] { display: none; }
 .isos-workbench__nav { display: flex; align-items: center; gap: $space-4; min-height: 64px; padding: $space-2 $space-5; background: var(--bg-elevated); border-bottom: 1px solid var(--border); z-index: 10; }
-.isos-workbench__nav strong { white-space: nowrap; font: 800 .92rem var(--font-display, sans-serif); letter-spacing: .08em; }
-.isos-workbench__nav strong span { color: var(--text-secondary); font-weight: 500; letter-spacing: 0; }
+.isos-workbench__brand { white-space: nowrap; color: var(--text); font: 800 .92rem var(--font-display, sans-serif); letter-spacing: .08em; text-decoration: none; }
+.isos-workbench__brand span { color: var(--text-secondary); font-weight: 500; letter-spacing: 0; }
+.isos-workbench__brand:hover { color: var(--primary); }
+.isos-workbench__brand:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
 .isos-workbench__nav > div { display: flex; align-items: center; gap: 4px; flex: 1; }
 .isos-workbench__nav button { min-height: $control-height; padding: 6px $control-padding-inline; border-radius: 4px; color: var(--text-secondary); }
 .isos-workbench__nav button:hover, .isos-workbench__nav button.active { color: var(--text); background: var(--primary-subtle); }
