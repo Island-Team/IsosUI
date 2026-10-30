@@ -1,0 +1,31 @@
+import { describe, expect, it } from 'vitest';
+import { decodeRgbFrame, type EosCameraFrame } from '../../services/eos/control';
+import { activeGraphIsCurrent, defaultMovement, discoveredHardware, eosControlNodes, movementValid } from './eos-control-model';
+import type { NodeGraph, NodeInstance } from '../../services/isos/node-graph';
+
+const base: NodeInstance = { id: 'base_1', node_type: 'eos.hardware.base@v1.0', label: 'Base', description: '', movement: { modes: ['body_velocity'], limits: { max_linear_m_s: 1, max_angular_rad_s: 0.5, max_velocity_lease_ms: 300 } } };
+const manual: NodeInstance = { id: 'manual_1', node_type: 'eos.control.manual@v1.0', label: 'Drive', description: '', settings: { target: 'cores/eos/layers/hardware/groups/base/nodes/base_1' } };
+const graph: NodeGraph = { version: '2.0.0', robot: { id: 'robot', name: 'Robot' }, cores: { eos: { layers: { hardware: { groups: { base: { nodes: { base_1: base } } } }, control: { groups: { manual: { nodes: { manual_1: manual } } } } } } } };
+
+describe('EOS workbench admission model', () => {
+  it('shows only registered graph control nodes and discovered graph hardware', () => {
+    expect(eosControlNodes(graph).map(({ node }) => node.id)).toEqual(['manual_1']);
+    expect(discoveredHardware(graph, [{ path: 'cores/eos/layers/hardware/groups/base/nodes/base_1', node_id: 'base_1', kind: 'base', label: 'Base', facets: [], capabilities: [] }, { path: 'cores/eos/layers/hardware/groups/camera/nodes/unconfigured', node_id: 'unconfigured', kind: 'camera', label: 'Other', facets: [], capabilities: [] }]).map(({ node }) => node.id)).toEqual(['base_1']);
+  });
+  it('rejects stale revisions and movements outside hardware limits', () => {
+    expect(activeGraphIsCurrent('saved', 'active')).toBe(false);
+    expect(activeGraphIsCurrent('saved', 'saved')).toBe(true);
+    const movement = defaultMovement('body_velocity', base);
+    expect(movementValid(movement, base)).toBe(true);
+    if (movement.type === 'body_velocity') {
+      expect(movementValid({ ...movement, x_m_s: 1.1 }, base)).toBe(false);
+      expect(movementValid({ ...movement, valid_for_ms: 400 }, base)).toBe(false);
+    }
+  });
+  it('bounds and decodes an RGB frame with row stride', () => {
+    const frame: EosCameraFrame = { meta: {}, width_px: 1, height_px: 2, stride_bytes: 4, rgb8_base64: btoa(String.fromCharCode(1, 2, 3, 0, 4, 5, 6, 0)), depth: null };
+    expect([...decodeRgbFrame(frame)]).toEqual([1, 2, 3, 255, 4, 5, 6, 255]);
+    expect(() => decodeRgbFrame({ ...frame, width_px: 4096 })).toThrow('display limits');
+    expect(() => decodeRgbFrame({ ...frame, rgb8_base64: btoa('short') })).toThrow('length');
+  });
+});

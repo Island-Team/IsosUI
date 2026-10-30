@@ -37,6 +37,12 @@
 .node-graph-canvas .react-flow__selection { border: 1px solid var(--primary); background: var(--primary-subtle); }
 .node-graph-multi-selection { display: grid; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
 .node-graph-multi-selection p { margin: 0; }
+.node-graph-control-settings { display: grid; gap: 8px; padding: 10px 0; border-top: 1px solid var(--border); }
+.node-graph-control-steps { display: grid; gap: 3px; padding: 0; margin: 0; list-style: none; }
+.node-graph-control-steps li { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: .77rem; }
+.node-graph-control-steps li > span { min-width: 0; overflow-wrap: anywhere; }
+.node-graph-control-steps li > div { display: flex; gap: 2px; }
+.node-graph-control-steps li button { min-width: 28px; padding: 2px !important; }
 .node-graph-icon-button { width: 30px; padding: 0 !important; }
 .node-graph-history-arrow { position: relative; width: 14px; height: 14px; border: 1.5px solid currentColor; border-right-color: transparent; border-radius: 50%; }
 .node-graph-history-arrow::after { content: ''; position: absolute; top: -3px; left: -2px; width: 5px; height: 5px; border-top: 1.5px solid currentColor; border-left: 1.5px solid currentColor; }
@@ -61,6 +67,9 @@
 .node-graph-card--base { --family: #d97706; }
 .node-graph-card--manipulator { --family: #8b5cf6; }
 .node-graph-card--dispatcher { --family: #2563eb; }
+.node-graph-card--manual { --family: #0d9488; }
+.node-graph-card--primitive { --family: #ea580c; }
+.node-graph-card--skill { --family: #a855f7; }
 .node-graph-card--egia-data { --family: #16a34a; }
 .node-graph-card--egia-process { --family: #e11d48; }
 .node-graph-card--software { --family: #6366f1; }

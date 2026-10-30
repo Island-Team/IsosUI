@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { NodeGraph, NodeTypeDefinition } from '@/services/isos/node-graph';
-import { addNode, connectNodes, disconnectInput, graphNodes, nextNodeId, nodePath, removeNode, renameNode } from './node-graph-edits';
+import { addNode, connectNodes, disconnectInput, graphNodes, nextNodeId, nodePath, removeNode, renameNode, updateNode } from './node-graph-edits';
+import { withControlTarget, withSkillSteps } from './control-node-config';
 
 const dispatcher: NodeTypeDefinition = { id: 'eos.dispatcher.control@v1.0', core: 'eos', layer: 'dispatcher', group: 'control', kind: 'software', lifecycle: 'internal', capabilities: ['admission'], settings: [], inputs: [], outputs: [{ name: 'base_command', data_type: 'base_movement', required: false }] };
 const base: NodeTypeDefinition = { id: 'eos.hardware.base@v1.0', core: 'eos', layer: 'hardware', group: 'base', kind: 'base', lifecycle: 'adapter', capabilities: ['body_velocity'], settings: [], inputs: [{ name: 'command', data_type: 'base_movement', required: true }], outputs: [{ name: 'status', data_type: 'status', required: false }] };
@@ -46,5 +47,17 @@ describe('v2 node graph edits', () => {
     const removed = removeNode(renamed, newSource);
     expect(graphNodes(removed, [dispatcher, base]).find((entry) => entry.path === target)?.node.inputs).toEqual({});
     expect(connected).toEqual(connectNodes(initial, [dispatcher, base], source, 'base_command', target, 'command'));
+  });
+  it('rewrites control targets and ordered skill steps when nodes are renamed', () => {
+    const primitive: NodeTypeDefinition = { ...dispatcher, id: 'eos.control.primitive@v1.0', layer: 'control', group: 'primitive' };
+    const skill: NodeTypeDefinition = { ...dispatcher, id: 'eos.control.skill@v1.0', layer: 'control', group: 'skill' };
+    let graph = addNode(addNode(addNode(empty(), base, 'drive'), primitive, 'move'), skill, 'sequence');
+    const basePath = nodePath(base, 'drive'); const primitivePath = nodePath(primitive, 'move'); const skillPath = nodePath(skill, 'sequence');
+    graph = updateNode(graph, primitivePath, withControlTarget(graphNodes(graph, []).find((item) => item.path === primitivePath)!.node, basePath, graphNodes(graph, []).find((item) => item.path === basePath)!.node));
+    graph = updateNode(graph, skillPath, withSkillSteps(graphNodes(graph, []).find((item) => item.path === skillPath)!.node, [primitivePath]));
+    graph = renameNode(graph, basePath, 'new_drive');
+    expect(graphNodes(graph, []).find((item) => item.path === primitivePath)?.node.settings?.target).toBe(nodePath(base, 'new_drive'));
+    graph = renameNode(graph, primitivePath, 'new_move');
+    expect(graphNodes(graph, []).find((item) => item.path === skillPath)?.node.settings?.steps).toEqual([nodePath(primitive, 'new_move')]);
   });
 });

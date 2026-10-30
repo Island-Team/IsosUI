@@ -54,7 +54,7 @@ export interface ProcessLog { node?: string; lines?: string[]; text?: string; [k
 
 export function requiredBackend(graph: NodeGraph): { id: string; version: string; scene?: string } | null {
   for (const core of Object.values(graph.cores)) for (const layer of Object.values(core.layers)) for (const group of Object.values(layer.groups)) for (const node of Object.values(group.nodes)) {
-    if (node.node_type === 'isos.process.backend@v1.0' && typeof node.settings?.package === 'string' && typeof node.settings?.version === 'string') {
+    if (node.node_type === 'eos.process.backend@v1.0' && typeof node.settings?.package === 'string' && typeof node.settings?.version === 'string') {
       return { id: node.settings.package, version: node.settings.version, scene: typeof node.settings.scene === 'string' ? node.settings.scene : undefined };
     }
   }
@@ -68,7 +68,7 @@ export function graphWithBackendScene(graph: NodeGraph, id: string, version: str
     ...core, layers: Object.fromEntries(Object.entries(core.layers).map(([layerName, layer]) => [layerName, {
       ...layer, groups: Object.fromEntries(Object.entries(layer.groups).map(([groupName, group]) => [groupName, {
         ...group, nodes: Object.fromEntries(Object.entries(group.nodes).map(([nodeName, node]) => {
-          if (node.node_type !== 'isos.process.backend@v1.0' || node.settings?.package !== id || node.settings?.version !== version) return [nodeName, node];
+          if (node.node_type !== 'eos.process.backend@v1.0' || node.settings?.package !== id || node.settings?.version !== version) return [nodeName, node];
           matches += 1;
           return [nodeName, { ...node, settings: { ...node.settings, scene } }];
         })),

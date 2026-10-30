@@ -7,6 +7,7 @@ import '@/styles/fonts.css';
 import '@/styles/global.scss';
 
 const NodeGraphManager = lazy(async () => ({ default: (await import('@/components/isos/NodeGraphManager')).NodeGraphManager }));
+const EosWorkbench = lazy(async () => ({ default: (await import('@/components/isos/EosWorkbench')).EosWorkbench }));
 
 const theme = localStorage.getItem('island-theme');
 const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
@@ -58,7 +59,8 @@ function App(): React.ReactElement {
   return <div className="isos-workbench"><nav className="isos-workbench__nav" aria-label="IsOS"><a className="isos-workbench__brand" href="https://www.os-island.com" aria-label="Island website">ISOS<span> / Aether</span></a><div role="group" aria-label="Pages">{(['graph', 'eos', 'egia'] as Page[]).map((name) => <button type="button" key={name} className={page === name ? 'active' : ''} aria-current={page === name ? 'page' : undefined} onClick={() => openPage(name)}>{labels[name]}</button>)}</div><button type="button" onClick={() => changeLanguage(lang === 'en' ? 'cn' : 'en')} aria-label={labels.language}>{lang === 'en' ? '中文' : 'EN'}</button></nav>
     {page === 'home' && <IsosHome lang={lang} onOpenGraph={() => openPage('graph')} graphDirty={graphDirty} />}
     <div className="isos-workbench__graph-view" hidden={page !== 'graph'}><Suspense fallback={<p role="status">{lang === 'cn' ? '正在加载节点图…' : 'Loading node graph…'}</p>}><NodeGraphManager lang={lang} onDirtyChange={setGraphDirty} /></Suspense></div>
-    {(page === 'eos' || page === 'egia') && <main className="isos-workbench__shell"><p className="isos-eyebrow">{page.toUpperCase()} · Aether v2</p><h1>{labels[page]}</h1><p>{labels.shell}</p><button type="button" onClick={() => openPage('graph')}>{labels.graph}</button></main>}
+    {page === 'eos' && <Suspense fallback={<p role="status">{lang === 'cn' ? '正在加载 EOS…' : 'Loading EOS…'}</p>}><EosWorkbench lang={lang} onOpenGraph={() => openPage('graph')} graphDirty={graphDirty} /></Suspense>}
+    {page === 'egia' && <main className="isos-workbench__shell"><p className="isos-eyebrow">EGIA · Aether v2</p><h1>{labels.egia}</h1><p>{labels.shell}</p><button type="button" onClick={() => openPage('graph')}>{labels.graph}</button></main>}
   </div>;
 }
 
