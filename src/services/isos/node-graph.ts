@@ -14,7 +14,7 @@ export interface NodeTypeDefinition {
   outputs: PortDefinition[];
   safety_adapter_type?: string | null;
 }
-export interface PortDefinition { name: string; data_type: string; required: boolean; description?: string; expected_rate_hz?: number | null; transport?: 'in_process' | 'unix_socket' | 'websocket' | 'ros2' | string; data_class?: string }
+export interface PortDefinition { name: string; data_type: string; required: boolean; cardinality?: 'one' | 'many'; description?: string; expected_rate_hz?: number | null; transport?: 'in_process' | 'unix_socket' | 'websocket' | 'ros2' | string; data_class?: string }
 export interface DataSchema { title?: string; description?: string; type?: string; properties?: Record<string, { type?: string; description?: string; 'x-unit'?: string; minimum?: number; maximum?: number }>; required?: string[]; [key: string]: unknown }
 export interface DataTypeDefinition { id: string; version: string; purpose: string; media_type: string; codec: string; schema: DataSchema; max_payload_bytes: number }
 
@@ -27,7 +27,7 @@ export interface NodeInstance {
   package?: { id: string; version: string };
   capabilities?: string[];
   settings?: Record<string, unknown>;
-  inputs?: Record<string, NodeSource>;
+  inputs?: Record<string, NodeSource | NodeSource[]>;
   references?: string[];
   frame_id?: string;
   joint_names?: string[];
@@ -65,6 +65,13 @@ export interface SetupStatus { ready?: boolean; issues?: string[]; [key: string]
 export interface ProcessLog { node?: string; lines?: string[]; text?: string; [key: string]: unknown }
 export interface LogLine { timestamp: string; level: string; source: string; message: string }
 export interface LogPage { lines: LogLine[]; next_cursor: string | null; rotated: boolean }
+export interface BuildReceipt { component: 'eos'; product_version: string; source_commit: string; binaries: Record<string, string>; sha256: Record<string, string> }
+export interface BuildBinariesReply { receipt: BuildReceipt; suggested_graph?: NodeGraphDocument }
+export interface AdapterFamilyOption { id: string; device_kinds: string[]; package?: { id: string; version: string }; compiled: boolean; transport: string; description: string; available: boolean; reason?: string }
+export interface PrimitiveBindingOption { node_type: string; device_kind: string; movement_types: string[]; available: boolean; reason?: string }
+export interface HardwareTargetOption { path: string; node_type: string; device_kind: string; adapter_type: string; movement_types: string[]; available: boolean; reason?: string }
+export interface NodeOptions { adapter_families: AdapterFamilyOption[]; primitive_bindings: PrimitiveBindingOption[]; targets: HardwareTargetOption[] }
+export interface PrimitiveSpec { name: string; version: string; device_class: string; movement_type: string; description: string }
 
 export function backendPackagePin(node: NodeInstance): { id: string; version: string } | null {
   if (node.node_type === 'eos.process.mujoco@v1.0' && node.package) return node.package;
@@ -107,7 +114,7 @@ export function graphWithBackendScene(graph: NodeGraph, id: string, version: str
 }
 
 export function getNodeGraph(): Promise<NodeGraphDocument> { return request('/node-graph'); }
-export function getNodeTypes(): Promise<{ types: NodeTypeDefinition[]; data_types?: DataTypeDefinition[] }> { return request('/node-types'); }
+export function getNodeTypes(): Promise<{ types: NodeTypeDefinition[]; data_types?: DataTypeDefinition[]; primitive_specs?: PrimitiveSpec[] }> { return request('/node-types'); }
 export function getNodeSets(): Promise<{ sets: NodeSetDefinition[] }> { return request('/node-sets'); }
 export function getInstalledPackages(): Promise<{ installed: InstalledPackage[] }> { return request('/packages'); }
 export function previewNodeSet(set: NodeSetDefinition, graph: NodeGraph, values: Record<string, string>, replaceLegacyMujoco = false): Promise<NodeSetPreview> {
@@ -125,6 +132,8 @@ export function getSetupStatus(): Promise<SetupStatus> { return request('/setup-
 export function controlProcesses(operation: 'run' | 'stop' | 'restart', revision?: string): Promise<ProcessStatus> {
   return request('/process-control', 'POST', { schema_version: 2, operation, ...(revision ? { revision } : {}) });
 }
+export function buildEosBinaries(): Promise<BuildBinariesReply> { return request('/build-binaries', 'POST', { schema_version: 2, target: 'eos', install_deps: false }); }
+export function getNodeOptions(graph: NodeGraph): Promise<NodeOptions> { return request('/node-options', 'POST', { schema_version: 2, graph }); }
 export function getProcessLogs(node: string, lines = 100): Promise<ProcessLog> {
   return request(`/process-logs/${encodeURIComponent(node)}?lines=${Math.max(1, Math.min(500, Math.floor(lines)))}`);
 }

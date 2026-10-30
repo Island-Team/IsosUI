@@ -1,3 +1,4 @@
+import { canonicalNodePath } from './node-graph-edits';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { eosRequest, type EosControlReply, type EosDiscoveryNode } from '@/services/eos/control';
 import { VisionPanel } from './VisionPanel';
@@ -89,8 +90,8 @@ function SkillControl({ entry, nodes, hardware, readings, clock, active, lang }:
   const initial = useMemo(() => {
     const paths = Array.isArray(entry.node.settings?.steps) ? entry.node.settings.steps : [];
     return paths.flatMap((path) => {
-      const primitive = nodes.find((candidate) => candidate.path === path && candidate.node.node_type === 'eos.control.primitive@v1.0');
-      const target = hardware.find((candidate) => candidate.path === primitive?.node.settings?.target);
+      const primitive = nodes.find((candidate) => candidate.path === canonicalNodePath(path) && candidate.node.node_type === 'eos.control.primitive@v1.0');
+      const target = hardware.find((candidate) => candidate.path === canonicalNodePath(String(primitive?.node.settings?.target || '')));
       const type = primitive?.node.settings?.movement_type as MovementType;
       return primitive && target && movementTypes(target.node).includes(type) ? [{ primitive, hardware: target, movement: defaultMovement(type, target.node) }] : [];
     });
@@ -209,7 +210,7 @@ export function EosWorkbench({ lang, onOpenGraph, graphDirty }: Props): React.Re
     {error && <p role="alert" className="eos-control__warning">{error}</p>}
     <section id="eos-controls" className="eos-workbench__section"><h2>{copy.controls}</h2>{controls.length ? <div className="eos-workbench__controls">{controls.map((entry) => entry.node.node_type === 'eos.control.skill@v1.0'
       ? <SkillControl key={`${graphDoc?.revision}:${entry.path}`} entry={entry} nodes={nodes} hardware={hardware} readings={readings} clock={clock} active={active} lang={lang} />
-      : <MovementControl key={`${graphDoc?.revision}:${entry.path}`} entry={entry} hardware={hardware.find((node) => node.path === entry.node.settings?.target)} reading={readings[String(entry.node.settings?.target || '')]} clock={clock} active={active} lang={lang} />)}</div> : <p>{copy.noControls}</p>}</section>
+      : <MovementControl key={`${graphDoc?.revision}:${entry.path}`} entry={entry} hardware={hardware.find((node) => node.path === canonicalNodePath(String(entry.node.settings?.target || '')))} reading={readings[canonicalNodePath(String(entry.node.settings?.target || ''))]} clock={clock} active={active} lang={lang} />)}</div> : <p>{copy.noControls}</p>}</section>
     <section id="eos-monitor" className="eos-workbench__section"><h2>{copy.monitor}</h2>{hardware.length ? <div className="eos-monitor__grid">{hardware.map((entry) => {
       const kind = hardwareKind(entry.node.node_type); const reading = readings[entry.path]; const badge = monitorBadge(reading, clock);
       return <article className={`eos-monitor__card eos-monitor__card--${kind}`} key={entry.path}><header><h3>{entry.node.label || entry.node.id}</h3><span className={`eos-monitor__${badge}`}>{copy[badge]}</span></header><p><code>{kind}</code> · {copy.status}: {reading?.status?.state || '—'} · {copy.health}: {reading?.health?.state || '—'}</p>{reading?.status?.active_command_id && <p>{copy.command}: <code>{reading.status.active_command_id}</code></p>}{reading?.health?.message && <p>{reading.health.message}</p>}{reading?.error && <p role="alert">{reading.error}</p>}{kind !== 'camera' && <><h4>{copy.observation}</h4><Observation kind={kind || ''} value={reading?.observation} />{reading?.observationAt && <p>{copy.update}: {new Date(reading.observationAt).toLocaleTimeString()}</p>}</>}</article>;

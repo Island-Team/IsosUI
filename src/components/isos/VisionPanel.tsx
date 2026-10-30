@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NodeGraph } from '@/services/isos/node-graph';
 import { decodeVisionFrame, getVisionGates, visionSocketUrl, type VisionGate, type VisionGates, type VisionFrameMetadata, type VisionSubscription } from '@/services/eos/vision';
-import { graphNodes } from './node-graph-edits';
+import { canonicalNodePath, graphNodes, inputSources } from './node-graph-edits';
 import type { Language } from '@/types';
 
 export function VisionPanel({ lang, graph, active }: { lang: Language; graph: NodeGraph | null; active: boolean }): React.ReactElement {
@@ -16,8 +16,8 @@ export function VisionPanel({ lang, graph, active }: { lang: Language; graph: No
   const socket = useRef<WebSocket | null>(null);
   const times = useRef<number[]>([]);
   const imageRef = useRef('');
-  const vision = useMemo(() => graphNodes(graph || { version: '2.0.0', robot: { id: '', name: '' }, cores: {} }, []).find((entry) => entry.node.node_type === 'isosui.system.vision@v1.0'), [graph]);
-  const initialGate = vision?.node.inputs?.preview?.node || '';
+  const vision = useMemo(() => graphNodes(graph || { version: '2.0.0', robot: { id: '', name: '' }, cores: {} }, []).find((entry) => entry.node.node_type === 'isos.ui.vision@v1.0') || graphNodes(graph || { version: '2.0.0', robot: { id: '', name: '' }, cores: {} }, []).find((entry) => entry.node.node_type === 'isosui.system.vision@v1.0'), [graph]);
+  const initialGate = canonicalNodePath(vision?.node.inputs?.preview ? inputSources(vision.node.inputs.preview)[0]?.node || '' : '');
   const refresh = useCallback(async (): Promise<void> => {
     if (!active) return;
     try { const next = await getVisionGates(); setCatalog(next); setError(''); setSelected((current) => next.gates.some((gate) => gate.path === current) ? current : next.gates.some((gate) => gate.path === initialGate) ? initialGate : ''); }

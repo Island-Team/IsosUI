@@ -31,15 +31,30 @@ export function portFamily(dataType: string): PortFamily {
   return 'other';
 }
 
-/** Independent visual channels: hue is rate, border is community, pattern is payload class. */
+export function dataTypeColor(dataType: string): string {
+  if (!dataType) return '#64748b';
+  const hash = [...dataType].reduce((value, character) => (Math.imul(value ^ character.charCodeAt(0), 16777619)) >>> 0, 2166136261);
+  return `hsl(${hash % 360} 70% 45%)`;
+}
+
+export function frequencyPattern(rate?: number | null): 'unknown' | 'low' | 'medium' | 'high' | 'solid' {
+  if (typeof rate !== 'number' || !Number.isFinite(rate) || rate <= 0) return 'unknown';
+  if (rate < 1) return 'low';
+  if (rate < 10) return 'medium';
+  if (rate < 30) return 'high';
+  return 'solid';
+}
+
+export function portVisual(port: PortDefinition): { className: string; style: Record<string, string> } {
+  const transport = (port.transport || 'in_process').toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+  return { className: `node-graph-port-transport--${transport}`, style: { '--port': dataTypeColor(port.data_type) } };
+}
+
+/** Anchor shape is transport, anchor color is exact type, line pattern is frequency. */
 export function interfaceVisual(port?: PortDefinition): { className: string; style: Record<string, string>; label: string } {
   const rate = port?.expected_rate_hz;
-  const known = typeof rate === 'number' && Number.isFinite(rate) && rate > 0;
-  const unit = known ? Math.max(0, Math.min(1, (Math.log10(rate) + 1) / (Math.log10(60) + 1))) : 0;
-  const hue = Math.round(280 * (1 - unit));
-  const dataClass = (port?.data_class || portFamily(port?.data_type || '')).toLowerCase().replace(/[^a-z0-9_-]/g, '-');
   const transport = (port?.transport || 'in_process').toLowerCase().replace(/[^a-z0-9_-]/g, '-');
-  return { className: `node-graph-edge--${dataClass} node-graph-edge-transport--${transport}`, style: { '--wire': known ? `hsl(${hue} 82% 52%)` : '#64748b' }, label: `${known ? `${rate} Hz` : 'Rate unknown'} · ${transport} · ${dataClass}` };
+  return { className: `node-graph-edge-frequency--${frequencyPattern(rate)}`, style: { '--wire': '#64748b' }, label: `${typeof rate === 'number' && rate > 0 ? `${rate} Hz` : 'Rate unknown'} · ${transport} · ${port?.data_type || 'unknown type'}` };
 }
 
 export function nodeSummary(definition: NodeTypeDefinition | undefined, node: NodeInstance): string[] {

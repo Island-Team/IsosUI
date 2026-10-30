@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getInstalledPackages, getNodeSets, installBackend, linkBackend, previewNodeSet, type NodeGraph, type NodeSetDefinition } from './node-graph';
+import { buildEosBinaries, getInstalledPackages, getNodeOptions, getNodeSets, installBackend, linkBackend, previewNodeSet, type NodeGraph, type NodeSetDefinition } from './node-graph';
 import { request } from './config-manager';
 
 vi.mock('./config-manager', () => ({ request: vi.fn() }));
@@ -38,6 +38,19 @@ describe('generic package acquisition API', () => {
       ['/packages/install', 'POST', { id: 'island/mujoco-sim', version: '2.0.0' }],
       ['/packages/link', 'POST', { id: 'island/mujoco-sim', version: '2.0.0', path: '/opt/mujoco', manifest: '/opt/mujoco/release.json' }],
       ['/packages/link', 'POST', { id: 'island/mujoco-sim', version: '2.0.0', path: '/opt/mujoco' }],
+    ]);
+  });
+});
+
+describe('build and selector API', () => {
+  it('uses the CLI shared EOS build service and graph-aware selector catalog', async () => {
+    const graph: NodeGraph = { version: '2.0.0', robot: { id: 'test', name: 'Test' }, cores: {} };
+    vi.mocked(request).mockClear().mockResolvedValueOnce({ receipt: { component: 'eos' } }).mockResolvedValueOnce({ adapter_families: [], primitive_bindings: [], targets: [] });
+    await buildEosBinaries();
+    await getNodeOptions(graph);
+    expect(vi.mocked(request).mock.calls).toEqual([
+      ['/build-binaries', 'POST', { schema_version: 2, target: 'eos', install_deps: false }],
+      ['/node-options', 'POST', { schema_version: 2, graph }],
     ]);
   });
 });

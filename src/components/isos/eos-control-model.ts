@@ -1,3 +1,4 @@
+import { canonicalNodePath } from './node-graph-edits';
 import type { EosDiscoveryNode } from '@/services/eos/control';
 import type { NodeGraph, NodeGraphDocument, NodeInstance, ProcessStatus } from '@/services/isos/node-graph';
 
@@ -7,7 +8,7 @@ export function eosGraphNodes(graph: NodeGraph): EosGraphNode[] {
   const core = graph.cores.eos;
   if (!core) return [];
   return Object.entries(core.layers).flatMap(([layerId, layer]) => Object.entries(layer.groups).flatMap(([groupId, group]) =>
-    Object.entries(group.nodes).map(([id, node]) => ({ path: `cores/eos/layers/${layerId}/groups/${groupId}/nodes/${id}`, node }))));
+    Object.entries(group.nodes).map(([id, node]) => ({ path: `eos/${layerId}/${groupId}/${id}`, node }))));
 }
 
 export function eosControlNodes(graph: NodeGraph): EosGraphNode[] {
@@ -15,7 +16,7 @@ export function eosControlNodes(graph: NodeGraph): EosGraphNode[] {
 }
 
 export function discoveredHardware(graph: NodeGraph, discovery: EosDiscoveryNode[]): EosGraphNode[] {
-  const paths = new Set(discovery.map((node) => node.path));
+  const paths = new Set(discovery.map((node) => canonicalNodePath(node.path)));
   return eosGraphNodes(graph).filter(({ path, node }) => /^eos\.hardware\.(camera|base|manipulator)@v1\.0$/.test(node.node_type) && paths.has(path));
 }
 

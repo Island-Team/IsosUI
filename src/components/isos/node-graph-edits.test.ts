@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { NodeGraph, NodeTypeDefinition } from '@/services/isos/node-graph';
-import { addNode, connectNodes, disconnectInput, graphNodes, nextNodeId, nodePath, removeNode, renameNode, updateNode } from './node-graph-edits';
+import { addNode, bindPrimitiveTarget, canonicalNodePath, connectNodes, disconnectInput, graphNodes, inputSources, nextNodeId, nodePath, removeNode, renameNode, updateNode } from './node-graph-edits';
 import { withControlTarget, withSkillSteps } from './control-node-config';
 
 const dispatcher: NodeTypeDefinition = { id: 'eos.dispatcher.control@v1.0', core: 'eos', layer: 'dispatcher', group: 'control', kind: 'software', lifecycle: 'internal', capabilities: ['admission'], settings: [], inputs: [], outputs: [{ name: 'base_command', data_type: 'base_movement', required: false }] };
@@ -19,7 +19,8 @@ describe('v2 node graph edits', () => {
   it('places an instance under its registered core, layer and group', () => {
     const graph = addNode(empty(), camera, 'front');
     const entry = graphNodes(graph, [camera])[0];
-    expect(entry.path).toBe('cores/eos/layers/hardware/groups/camera/nodes/front');
+    expect(entry.path).toBe('eos/hardware/camera/front');
+    expect(canonicalNodePath('cores/eos/layers/hardware/groups/camera/nodes/front')).toBe(entry.path);
     expect(entry.node.node_type).toBe('eos.hardware.camera@v1.0');
     expect(entry.node.capabilities).toEqual(['rgb8']);
     expect(entry.node.movement).toBeUndefined();
@@ -43,10 +44,22 @@ describe('v2 node graph edits', () => {
     const connected = connectNodes(initial, [dispatcher, base], source, 'base_command', target, 'command');
     const renamed = renameNode(connected, source, 'admission');
     const newSource = nodePath(dispatcher, 'admission');
-    expect(graphNodes(renamed, [dispatcher, base]).find((entry) => entry.path === target)?.node.inputs?.command.node).toBe(newSource);
+    expect(graphNodes(renamed, [dispatcher, base]).find((entry) => entry.path === target)?.node.inputs?.command && inputSources(graphNodes(renamed, [dispatcher, base]).find((entry) => entry.path === target)!.node.inputs!.command)[0].node).toBe(newSource);
     const removed = removeNode(renamed, newSource);
     expect(graphNodes(removed, [dispatcher, base]).find((entry) => entry.path === target)?.node.inputs).toEqual({});
     expect(connected).toEqual(connectNodes(initial, [dispatcher, base], source, 'base_command', target, 'command'));
+  });
+  it('supports multiple primitive bindings and rewires one target at a time', () => {
+    const binding: NodeTypeDefinition = { ...dispatcher, id: 'eos.dispatcher.primitive_base@v1.0', group: 'base', outputs: [{ name: 'command', data_type: 'base_movement', required: false }] };
+    const multiBase: NodeTypeDefinition = { ...base, inputs: [{ name: 'command', data_type: 'base_movement', required: true, cardinality: 'many' }] };
+    let graph = addNode(addNode(addNode(addNode(empty(), binding, 'first'), binding, 'second'), multiBase, 'drive'), multiBase, 'other');
+    const first = nodePath(binding, 'first'), second = nodePath(binding, 'second'), drive = nodePath(base, 'drive'), other = nodePath(base, 'other');
+    graph = bindPrimitiveTarget(graph, [binding, multiBase], first, drive);
+    graph = bindPrimitiveTarget(graph, [binding, multiBase], second, drive);
+    expect(inputSources(graphNodes(graph, []).find((entry) => entry.path === drive)!.node.inputs!.command)).toHaveLength(2);
+    graph = bindPrimitiveTarget(graph, [binding, multiBase], first, other);
+    expect(inputSources(graphNodes(graph, []).find((entry) => entry.path === drive)!.node.inputs!.command)).toEqual([{ node: second, output: 'command' }]);
+    expect(inputSources(graphNodes(graph, []).find((entry) => entry.path === other)!.node.inputs!.command)).toEqual([{ node: first, output: 'command' }]);
   });
   it('rewrites control targets and ordered skill steps when nodes are renamed', () => {
     const primitive: NodeTypeDefinition = { ...dispatcher, id: 'eos.control.primitive@v1.0', layer: 'control', group: 'primitive' };
