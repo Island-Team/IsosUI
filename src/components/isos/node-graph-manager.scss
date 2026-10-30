@@ -30,6 +30,12 @@
 .node-graph-legend .node-graph-port--movement i, .node-graph-legend .node-graph-port--request i { border-radius: 1px; transform: rotate(45deg); }
 .node-graph-canvas { position: relative; min-width: 0; min-height: 0; }
 .node-graph-canvas .react-flow { position: absolute; inset: 0; width: 100%; height: 100%; }
+.node-graph-quick-add { position: absolute; z-index: 12; width: min(276px, calc(100% - 16px)); padding: 8px; border: 1px solid var(--border); border-radius: $radius-sm; background: var(--bg-elevated); box-shadow: var(--shadow-lg); }
+.node-graph-quick-add > input { margin-bottom: 6px; }
+.node-graph-quick-add__list { max-height: min(260px, 45vh); overflow: auto; }
+.node-graph-quick-add__list button { display: flex; flex-direction: column; align-items: flex-start; width: 100%; min-height: 44px; padding: 6px 8px; border: 0; border-top: 1px solid var(--border); border-radius: 0; text-align: left; }
+.node-graph-quick-add__list button:hover, .node-graph-quick-add__list button:focus-visible { background: var(--bg-secondary); }
+.node-graph-quick-add__list small { max-width: 100%; color: var(--text-secondary); font-size: .7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .node-graph-empty { position: absolute; z-index: 1; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(90%, 360px); text-align: center; color: var(--text-secondary); }
 .node-graph-card { --family: #64748b; position: relative; min-width: 240px; max-width: 300px; padding: 10px; color: var(--text); background: var(--bg-elevated); border: 1px solid var(--family); border-top: 5px solid var(--family); border-radius: 8px; box-shadow: var(--shadow-lg); }
 .node-graph-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }

@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import ReactFlow, { Background, Handle, MiniMap, Position, ReactFlowProvider, type Connection, type Edge, type Node, type NodeChange, type NodeProps } from 'reactflow';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import ReactFlow, { Background, Handle, MiniMap, Position, ReactFlowProvider, type Connection, type Edge, type Node, type NodeChange, type NodeProps, type ReactFlowInstance } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { applyNodeGraph, getBackends, getNodeGraph, getNodeTypes, getProcessStatus, validateNodeGraph, type BackendPackage, type NodeGraph, type NodeGraphDiagnostic, type NodeInstance, type NodeTypeDefinition, type ProcessStatus } from '@/services/isos/node-graph';
 import type { Language } from '@/types';
@@ -103,6 +103,11 @@ export function NodeGraphManager({ lang, onDirtyChange }: Props): React.ReactEle
   const [typeId, setTypeId] = useState('');
   const [newId, setNewId] = useState('');
   const [search, setSearch] = useState('');
+  const [quickSearch, setQuickSearch] = useState('');
+  const [quickAdd, setQuickAdd] = useState<{ left: number; top: number; x: number; y: number } | null>(null);
+  const [flowInstance, setFlowInstance] = useState<ReactFlowInstance | null>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const quickSearchRef = useRef<HTMLInputElement>(null);
   const [undoStack, setUndoStack] = useState<NodeGraph[]>([]);
   const [redoStack, setRedoStack] = useState<NodeGraph[]>([]);
   const [diagnostics, setDiagnostics] = useState<NodeGraphDiagnostic[]>([]);
@@ -113,6 +118,8 @@ export function NodeGraphManager({ lang, onDirtyChange }: Props): React.ReactEle
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
   const entries = useMemo(() => graph ? graphNodes(graph, types) : [], [graph, types]);
   const visibleTypes = useMemo(() => types.filter((type) => `${type.id} ${type.core} ${type.layer} ${type.group} ${type.kind}`.toLowerCase().includes(search.toLowerCase())), [types, search]);
+  const quickTypes = useMemo(() => types.filter((type) => `${type.id} ${type.core} ${type.layer} ${type.group} ${type.kind}`.toLowerCase().includes(quickSearch.toLowerCase())), [types, quickSearch]);
+  useEffect(() => { if (quickAdd) quickSearchRef.current?.focus(); }, [quickAdd]);
   const chosen = entries.find((entry) => entry.path === selected);
   const refresh = useCallback(async (confirm = false): Promise<void> => {
     if (confirm && dirty && !window.confirm(copy.discard)) return;
@@ -133,14 +140,35 @@ export function NodeGraphManager({ lang, onDirtyChange }: Props): React.ReactEle
   const undo = (): void => { if (!graph || !undoStack.length) return; setRedoStack((stack) => [...stack, graph]); setGraph(undoStack[undoStack.length - 1]); setUndoStack(undoStack.slice(0, -1)); };
   const redo = (): void => { if (!graph || !redoStack.length) return; setUndoStack((stack) => [...stack, graph]); setGraph(redoStack[redoStack.length - 1]); setRedoStack(redoStack.slice(0, -1)); };
   const add = (automatic = false): void => { const definition = types.find((type) => type.id === typeId); if (!definition || !graph) return; const id = automatic || !newId.trim() ? `${definition.group.replace(/[^a-z0-9-]/g, '') || 'node'}-${Math.random().toString(36).slice(2, 6)}` : newId.trim(); try { edit((current) => addNode(current, definition, id)); setSelected(nodePath(definition, id)); setNewId(''); setMessage(''); } catch (error) { setMessage(error instanceof Error ? error.message : copy.duplicate); } };
+  const addAtCursor = (definition: NodeTypeDefinition): void => {
+    if (!quickAdd || !graph) return;
+    const id = `${definition.group.replace(/[^a-z0-9-]/g, '') || 'node'}-${Math.random().toString(36).slice(2, 6)}`;
+    try {
+      edit((current) => addNode(current, definition, id));
+      const path = nodePath(definition, id);
+      setPositions((current) => ({ ...current, [path]: { x: quickAdd.x, y: quickAdd.y } }));
+      setSelected(path); setQuickAdd(null); setMessage('');
+    } catch (error) { setMessage(error instanceof Error ? error.message : copy.duplicate); }
+  };
+  const openQuickAdd = (event: React.MouseEvent<HTMLDivElement>): void => {
+    event.preventDefault();
+    if (!graph || !flowInstance || !canvasRef.current) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const position = flowInstance.project({ x, y });
+    setQuickSearch('');
+    setQuickAdd({ left: Math.max(8, Math.min(x, rect.width - 284)), top: Math.max(8, Math.min(y, rect.height - 300)), x: position.x, y: position.y });
+  };
   const connect = (connection: Connection): void => { if (!graph || !connection.source || !connection.target) return; try { edit((current) => connectNodes(current, types, connection.source!, connection.sourceHandle?.replace(/^out:/, '') || '', connection.target!, connection.targetHandle?.replace(/^in:/, '') || '')); setMessage(''); } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); } };
   useEffect(() => { const onKey = (event: KeyboardEvent): void => {
     const target = event.target as HTMLElement;
+    if (event.key === 'Escape' && quickAdd) { setQuickAdd(null); return; }
     if (target.closest('input, textarea, select, [contenteditable="true"]')) return;
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); if (event.shiftKey) redo(); else undo(); }
     else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') { event.preventDefault(); redo(); }
     else if ((event.key === 'Delete' || event.key === 'Backspace') && selected) { event.preventDefault(); edit((current) => removeNode(current, selected)); setSelected(''); }
-  }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey); }, [graph, undoStack, redoStack, selected]);
+  }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey); }, [graph, undoStack, redoStack, selected, quickAdd]);
   const validate = async (): Promise<boolean> => { if (!graph) return false; setBusy(true); try { const result = await validateNodeGraph(graph); setDiagnostics(result.diagnostics); setMessage(result.valid ? copy.valid : `${result.diagnostics.length} ${copy.diagnostics.toLowerCase()}`); return result.valid; } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); return false; } finally { setBusy(false); } };
   const apply = async (): Promise<void> => { if (!graph) return; setBusy(true); try { const checked = await validateNodeGraph(graph); setDiagnostics(checked.diagnostics); if (!checked.valid) { setMessage(`${checked.diagnostics.length} ${copy.diagnostics.toLowerCase()}`); return; } const document = await applyNodeGraph(revision, graph); setGraph(document.graph); setSaved(JSON.stringify(document.graph)); setRevision(document.revision); setMessage(copy.saved); } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); } finally { setBusy(false); } };
   const nodes = useMemo<Node<FlowData>[]>(() => entries.map((entry, index) => ({ id: entry.path, type: 'profile', position: positions[entry.path] || { x: 50 + (index % 3) * 330, y: 50 + Math.floor(index / 3) * 220 }, data: { entry, error: diagnostics.some((item) => item.path.includes(entry.path)) }, selected: entry.path === selected })), [entries, positions, selected, diagnostics]);
@@ -156,7 +184,7 @@ export function NodeGraphManager({ lang, onDirtyChange }: Props): React.ReactEle
     <header><h1>{copy.title}</h1><div><button type="button" onClick={undo} disabled={!undoStack.length} title="Ctrl+Z">{copy.undo}</button><button type="button" onClick={redo} disabled={!redoStack.length} title="Ctrl+Shift+Z">{copy.redo}</button><button type="button" onClick={() => void refresh(true)} disabled={busy}>{copy.refresh}</button><button type="button" onClick={() => void validate()} disabled={busy || !graph}>{copy.validate}</button><button type="button" onClick={() => void apply()} disabled={busy || !dirty}>{copy.apply}</button><span role="status">{dirty ? copy.dirty : copy.clean} · {copy.savedRevision}: {revision.slice(0, 8) || '—'} · {copy.activeRevision}: {processStatus?.active_revision?.slice(0, 8) || '—'}</span></div></header>
     {message && <p className="node-graph-message" role="status">{message}</p>}
     <div className="node-graph-body"><aside className="node-graph-library"><h2>{copy.catalog}</h2><label>{copy.search}<input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={copy.search} /></label><label>{copy.type}<select value={typeId} onChange={(event) => setTypeId(event.target.value)}>{visibleTypes.map((type) => <option key={type.id} value={type.id}>{type.core} / {type.layer} / {type.group} · {type.id}</option>)}</select></label><label>{copy.id}<input value={newId} onChange={(event) => setNewId(event.target.value.toLowerCase())} /></label><button type="button" onClick={() => add()} disabled={!graph || !typeId}>{copy.add}</button><p>{copy.port}</p><p>{copy.hint}</p><div className="node-graph-legend" aria-label="Port types"><h3>{lang === 'cn' ? '数据类型' : 'Data types'}</h3>{(['camera', 'observation', 'movement', 'request', 'outcome', 'health', 'status', 'context', 'plan'] as const).map((name) => <span className={`node-graph-port--${name}`} key={name}><i aria-hidden="true" />{name}</span>)}</div>{graph && <><h2>{copy.robot}</h2><label>{copy.id}<input value={graph.robot.id} onChange={(event) => edit((current) => ({ ...current, robot: { ...current.robot, id: event.target.value } }))} /></label><label>{copy.name}<input value={graph.robot.name} onChange={(event) => edit((current) => ({ ...current, robot: { ...current.robot, name: event.target.value } }))} /></label></>}</aside>
-      <div className="node-graph-canvas">{graph ? <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onConnect={connect} onNodeClick={(_, node) => setSelected(node.id)} onPaneClick={() => setSelected('')} onDoubleClick={(event) => { if ((event.target as HTMLElement).classList.contains('react-flow__pane')) add(true); }} fitView minZoom={0.2} maxZoom={2}><Background color="var(--border)" /><MiniMap pannable zoomable /></ReactFlow> : <div className="node-graph-empty"><p>{copy.disconnected}</p><button type="button" onClick={() => void refresh()}>{copy.connect}</button></div>}{graph && !entries.length && <p className="node-graph-empty">{copy.noNodes}</p>}</div>
+      <div className="node-graph-canvas" ref={canvasRef} onContextMenu={openQuickAdd}>{graph ? <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onInit={setFlowInstance} onNodesChange={onNodesChange} onConnect={connect} onNodeClick={(_, node) => { setSelected(node.id); setQuickAdd(null); }} onPaneClick={() => { setSelected(''); setQuickAdd(null); }} onDoubleClick={(event) => { if ((event.target as HTMLElement).classList.contains('react-flow__pane')) add(true); }} fitView minZoom={0.2} maxZoom={2}><Background color="var(--border)" /><MiniMap pannable zoomable /></ReactFlow> : <div className="node-graph-empty"><p>{copy.disconnected}</p><button type="button" onClick={() => void refresh()}>{copy.connect}</button></div>}{graph && !entries.length && <p className="node-graph-empty">{copy.noNodes}</p>}{quickAdd && <div className="node-graph-quick-add" role="dialog" aria-label={copy.add} style={{ left: quickAdd.left, top: quickAdd.top }} onContextMenu={(event) => event.stopPropagation()}><input ref={quickSearchRef} type="search" aria-label={copy.search} placeholder={copy.search} value={quickSearch} onChange={(event) => setQuickSearch(event.target.value)} /><div className="node-graph-quick-add__list">{quickTypes.map((type) => <button type="button" key={type.id} onClick={() => addAtCursor(type)}><strong>{type.group}</strong><small>{type.core} / {type.layer} · {type.id}</small></button>)}</div></div>}</div>
       <aside className="node-graph-side">{chosen ? <><NodeInspector key={chosen.path} entry={chosen} lang={lang} onChange={(change) => edit((current) => updateNode(current, chosen.path, change))} onRename={(id) => { try { edit((current) => renameNode(current, chosen.path, id)); setSelected(`${chosen.path.slice(0, chosen.path.lastIndexOf('/') + 1)}${id}`); setMessage(''); } catch { setMessage(copy.duplicate); } }} onRemove={() => { edit((current) => removeNode(current, chosen.path)); setSelected(''); }} /><h3>{copy.target}</h3><ul>{Object.entries(chosen.node.inputs || {}).map(([input, source]) => <li key={input}>{input} ← {source.node}.{source.output}<button type="button" aria-label={`${copy.remove} ${input}`} onClick={() => edit((current) => disconnectInput(current, chosen.path, input))}>×</button></li>)}</ul></> : <p>{copy.noSelection}</p>}
         <section><h2>{copy.diagnostics}</h2>{diagnostics.length ? <ul>{diagnostics.map((item, index) => <li key={index}><button className="node-graph-diagnostic" type="button" onClick={() => setSelected(entries.find((entry) => item.path.includes(entry.path))?.path || '')}><code>{item.path}</code><span>{item.message}</span></button></li>)}</ul> : <p>{copy.valid}</p>}</section><section><h2>{copy.process}</h2>{processStatus ? <ul>{processStatus.processes.map((process) => <li key={process.id}>{process.id}: {process.state || 'running'}, PID {process.pid ?? '—'}, restarts {process.restarts}</li>)}</ul> : <p>{copy.noStatus}</p>}</section></aside></div>
   </main></ReactFlowProvider>;
