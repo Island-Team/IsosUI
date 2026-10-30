@@ -105,6 +105,12 @@ export function renameNode(graph: NodeGraph, path: string, id: string): NodeGrap
   for (const entry of graphNodes(next, [])) {
     for (const source of Object.values(entry.node.inputs || {})) if (source.node === path) source.node = newPath;
     entry.node.references = entry.node.references?.map((reference) => reference === path ? newPath : reference);
+    if (entry.node.node_type === 'eos.control.manual@v1.0' || entry.node.node_type === 'eos.control.primitive@v1.0') {
+      if (entry.node.settings?.target === path) entry.node.settings = { ...entry.node.settings, target: newPath };
+    }
+    if (entry.node.node_type === 'eos.control.skill@v1.0' && Array.isArray(entry.node.settings?.steps)) {
+      entry.node.settings = { ...entry.node.settings, steps: entry.node.settings.steps.map((step) => step === path ? newPath : step) };
+    }
   }
   return next;
 }

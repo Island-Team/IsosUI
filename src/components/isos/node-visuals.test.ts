@@ -8,12 +8,15 @@ describe('node visual semantics', () => {
     expect(nodeFamily(definition('isos', 'process', 'backend'))).toBe('process');
     expect(nodeFamily(definition('egia', 'common', 'data'))).toBe('egia-data');
     expect(nodeFamily(definition('eos', 'dispatcher', 'route'))).toBe('dispatcher');
+    expect(nodeFamily(definition('eos', 'control', 'manual'))).toBe('manual');
+    expect(nodeFamily(definition('eos', 'control', 'primitive'))).toBe('primitive');
+    expect(nodeFamily(definition('eos', 'control', 'skill'))).toBe('skill');
     expect(portFamily('CameraFrame')).toBe('camera');
     expect(portFamily('BaseMovementCommand')).toBe('movement');
     expect(portFamily('HealthSample')).toBe('health');
   });
   it('only shows relevant configuration, not payloads', () => {
-    expect(nodeSummary(definition('isos', 'process', 'backend'), { id: 'sim', node_type: 'isos.process.backend@v1.0', label: 'sim', description: '', settings: { package: 'island/mujoco-sim', scene: 'default', payload: 'hidden' } })).toEqual(['package: island/mujoco-sim', 'scene: default']);
+    expect(nodeSummary({ ...definition('eos', 'process', 'backend'), lifecycle: 'process' }, { id: 'sim', node_type: 'eos.process.backend@v1.0', label: 'sim', description: '', settings: { package: 'island/mujoco-sim', scene: 'default', payload: 'hidden' } })).toEqual(['package: island/mujoco-sim', 'scene: default']);
   });
   it('summarizes hardware adapter settings and modes', () => {
     const camera = { ...definition('eos', 'hardware', 'camera'), kind: 'camera' as const, lifecycle: 'adapter' as const };

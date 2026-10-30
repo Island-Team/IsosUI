@@ -8,11 +8,18 @@ module.exports = (env = {}) => {
   const host = process.env.ISOSUI_HOST || '127.0.0.1';
   const port = Number(process.env.ISOSUI_PORT || 16001);
   const apiOrigin = process.env.ISOSUI_API_ORIGIN || 'http://127.0.0.1:16000';
+  const eosApiOrigin = process.env.ISOSUI_EOS_API_ORIGIN || 'http://127.0.0.1:16020';
   const parsedApi = new URL(apiOrigin);
+  const parsedEosApi = new URL(eosApiOrigin);
   if (parsedApi.protocol !== 'http:' || parsedApi.hostname !== '127.0.0.1' ||
       !parsedApi.port || parsedApi.pathname !== '/' || parsedApi.search || parsedApi.hash ||
       parsedApi.username || parsedApi.password) {
     throw new Error('ISOSUI_API_ORIGIN must be http://127.0.0.1:<port>');
+  }
+  if (parsedEosApi.protocol !== 'http:' || parsedEosApi.hostname !== '127.0.0.1' ||
+      !parsedEosApi.port || parsedEosApi.pathname !== '/' || parsedEosApi.search || parsedEosApi.hash ||
+      parsedEosApi.username || parsedEosApi.password) {
+    throw new Error('ISOSUI_EOS_API_ORIGIN must be http://127.0.0.1:<port>');
   }
   if (host !== '127.0.0.1' || !Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error('ISOSUI_HOST must be 127.0.0.1 and ISOSUI_PORT must be a valid port');
@@ -33,7 +40,7 @@ module.exports = (env = {}) => {
       { test: /\.s?css$/, use: ['style-loader', 'css-loader', { loader: 'sass-loader', options: { sassOptions: { charset: false } } }] },
     ] },
     plugins: [
-      new webpack.DefinePlugin({ ISOSUI_TARGET: JSON.stringify(target), ISOSUI_API_ORIGIN: JSON.stringify(apiOrigin) }),
+      new webpack.DefinePlugin({ ISOSUI_TARGET: JSON.stringify(target), ISOSUI_API_ORIGIN: JSON.stringify(apiOrigin), ISOSUI_EOS_API_ORIGIN: JSON.stringify(eosApiOrigin) }),
       new HtmlWebpackPlugin({ template: './public/index.html', favicon: './src/assets/brand/IslandTeam.png' }),
     ],
     optimization: { runtimeChunk: 'single' },
