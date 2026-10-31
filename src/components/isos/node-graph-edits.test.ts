@@ -6,9 +6,9 @@ import { withControlTarget, withSkillSteps } from './control-node-config';
 const dispatcher: NodeTypeDefinition = { id: 'eos.dispatcher.control@v1.0', core: 'eos', layer: 'dispatcher', group: 'control', kind: 'software', lifecycle: 'internal', capabilities: ['admission'], settings: [], inputs: [], outputs: [{ name: 'base_command', data_type: 'base_movement', required: false }] };
 const base: NodeTypeDefinition = { id: 'eos.hardware.base@v1.0', core: 'eos', layer: 'hardware', group: 'base', kind: 'base', lifecycle: 'adapter', capabilities: ['body_velocity'], settings: [], inputs: [{ name: 'command', data_type: 'base_movement', required: true }], outputs: [{ name: 'status', data_type: 'status', required: false }] };
 const camera: NodeTypeDefinition = { id: 'eos.hardware.camera@v1.0', core: 'eos', layer: 'hardware', group: 'camera', kind: 'camera', lifecycle: 'adapter', capabilities: ['rgb8', 'aligned_depth_u16'], settings: [], inputs: [], outputs: [{ name: 'frame', data_type: 'camera_frame', required: false }] };
-const empty = (): NodeGraph => ({ version: '2.0.0', robot: { id: 'robot', name: 'Robot' }, cores: {} });
+const empty = (): NodeGraph => ({ version: '1.0.0', robot: { id: 'robot', name: 'Robot' }, cores: {} });
 
-describe('v2 node graph edits', () => {
+describe('v1 node graph edits', () => {
   it('detects a package preview that removes an existing node', () => {
     const graph = addNode(empty(), camera, 'front');
     expect(removedNodePaths(graph, addNode(graph, camera, 'rear'))).toEqual([]);

@@ -14,7 +14,7 @@ npm test
 npm run build
 ```
 
-`npm run dev` 启动独立的开发前端，`npm start` 启动独立的生产模式 Webpack 服务。两者默认监听 `127.0.0.1:16001`，直接请求 IsOS `http://127.0.0.1:16000/api/isos/v2` 和 EOS `http://127.0.0.1:16020/api/eos/v2`。可通过 `ISOSUI_PORT`、`ISOSUI_API_ORIGIN=http://127.0.0.1:<API 端口>` 和 `ISOSUI_EOS_API_ORIGIN=http://127.0.0.1:<EOS 端口>` 指定其他环回端口。Webpack 编译时写入 API 地址，并仅接受 HTTP 环回地址。IsOS 和 EOS 必须允许前端的准确来源进行跨域请求。编辑器无需 URL 令牌或 Authorization 请求头。
+`npm run dev` 启动独立的开发前端，`npm start` 启动独立的生产模式 Webpack 服务。两者默认监听 `127.0.0.1:16001`，直接请求 IsOS `http://127.0.0.1:16000/api/isos/v1` 和 EOS `http://127.0.0.1:16020/api/eos/v2`。可通过 `ISOSUI_PORT`、`ISOSUI_API_ORIGIN=http://127.0.0.1:<API 端口>` 和 `ISOSUI_EOS_API_ORIGIN=http://127.0.0.1:<EOS 端口>` 指定其他环回端口。Webpack 编译时写入 API 地址，并仅接受 HTTP 环回地址。IsOS 和 EOS 必须允许前端的准确来源进行跨域请求。编辑器无需 URL 令牌或 Authorization 请求头。
 
 使用 IsOS 管理的工作台时，在本仓库构建软件包，将 IsOS 配置为使用 `dist/local`，然后启动服务：
 
@@ -28,11 +28,11 @@ isos serve
 
 ## 工作台
 
-节点图编辑器是唯一的 IsOS 配置编辑器。它通过共用的 IsOS API 客户端读取和保存当前 `/node-graph` 接口；已退役的 `/graph` 和 `/profiles` 编辑器不再包含在两种构建产物中。
+节点图编辑器是唯一的 IsOS 配置编辑器。它通过共用的 IsOS API 客户端读取和保存当前 `/node-graph` 接口；已退役的 `/graph` 和 `/profiles` 编辑器不再包含在两种构建产物中。IsosUI 的首次发布版本为 `1.0.0`；IsOS 使用 v1 API 和 `1.0.0` 节点图格式。EOS 桥接服务仍使用独立的 v2 API 接口。
 
-首页、节点图和 EGIA 日志面板通过游标读取统一的 IsOS `/api/isos/v2/logs` 接口。首页默认打开**所有来源**，即使没有进程在运行也可查看；可在来源菜单中选择具体进程。日志面板还保留当前页面会话中的浏览器控制台、错误和画布事件。**所有来源**合并浏览器事件、IsOS 管理器事件、服务日志、EOS 等来源；**浏览器**可单独查看客户端事件。显示级别默认展示信息及以上；更改级别只筛选浏览器中已读取的日志，不改变 IsOS 的记录级别。切换来源时重新开始读取，日志轮转时清除旧内容。关闭实时跟踪或页面隐藏时暂停轮询。
+首页、节点图和 EGIA 日志面板通过游标读取统一的 IsOS `/api/isos/v1/logs` 接口。首页默认打开**所有来源**，即使没有进程在运行也可查看；可在来源菜单中选择具体进程。日志面板还保留当前页面会话中的浏览器控制台、错误和画布事件。**所有来源**合并浏览器事件、IsOS 管理器事件、服务日志、EOS 等来源；**浏览器**可单独查看客户端事件。显示级别默认展示信息及以上；更改级别只筛选浏览器中已读取的日志，不改变 IsOS 的记录级别。切换来源时重新开始读取，日志轮转时清除旧内容。关闭实时跟踪或页面隐藏时暂停轮询。
 
-工作台包含首页、节点图、EOS 和 EGIA 页面。首页可按准确 ID 和版本安装软件包，或链接本地目录并可选提供发布清单的绝对路径；链接前会预览清单、自动填写 ID 和版本并显示验证结果。即使节点图尚无软件包节点，也可操作。省略清单路径时，IsOS 会在目录根部查找 `release.json`。首页从 `/packages` 列出所有已安装的软件包记录，并从 `/backends` 单独显示后端就绪状态。首页还显示配置检查、已保存和运行中的修订、进程状态、运行/重启/停止操作及有限长度的日志。EOS 页面仅显示运行中节点图声明的手动、原语与技能节点控制；EGIA 页面提供由 IsOS 进程状态和日志支持的概览与日志工作台；没有 EGIA 进程时会明确提示。节点图从 IsOS `/api/isos/v2/node-graph` 读取唯一编写的图，从 `/api/isos/v2/node-types` 读取注册类型目录。节点类型确定核心、层、组、生命周期、配置字段和类型化端口。添加节点会在类型确定的位置创建实例。当前类型定义使用 `@v1.0`；图格式仍为 `2.0.0`，IsosUI 的应用版本独立维护。
+工作台包含首页、节点图、EOS 和 EGIA 页面。首页可按准确 ID 和版本安装软件包，或链接本地目录并可选提供发布清单的绝对路径；链接前会预览清单、自动填写 ID 和版本并显示验证结果。即使节点图尚无软件包节点，也可操作。省略清单路径时，IsOS 会在目录根部查找 `release.json`。首页从 `/packages` 列出所有已安装的软件包记录，并从 `/backends` 单独显示后端就绪状态。首页还显示配置检查、已保存和运行中的修订、进程状态、运行/重启/停止操作及有限长度的日志。EOS 页面仅显示运行中节点图声明的手动、原语与技能节点控制；EGIA 页面提供由 IsOS 进程状态和日志支持的概览与日志工作台；没有 EGIA 进程时会明确提示。节点图从 IsOS `/api/isos/v1/node-graph` 读取唯一编写的图，从 `/api/isos/v1/node-types` 读取注册类型目录。节点类型确定核心、层、组、生命周期、配置字段和类型化端口。添加节点会在类型确定的位置创建实例。当前类型定义使用 `@v1.0`；图格式为 `1.0.0`，IsosUI 的应用版本独立维护。
 
 节点库通过 IsOS `/node-sets` 显示已安装软件包的节点集。选择节点集并填写字符串参数后，通过 `/node-sets/preview` 预览；服务器返回组合后的图和新增路径，但不会保存。点击添加后，预览结果作为一次可撤销的本地编辑。软件包预览必须保留现有节点。如果预览会删除节点，编辑器将拒绝；请先明确编辑节点图，再添加新的节点集。“检查节点图”和“保存节点图”仍使用带修订检查的节点图 API。旧版 IsOS 不支持节点集接口时，节点库显示为空。
 
@@ -48,7 +48,7 @@ EOS MuJoCo 进程检查器同时支持软件包提供的 `eos.process.mujoco@v1.
 
 EOS“视觉”区域从 `/api/eos/v2/vision/gates` 列出活动且兼容的相机网关。IsOS 拥有的 `isos.ui.vision@v1.0` 节点（路径 `isos/ui/panel/<id>`；旧 `isosui.system.vision@v1.0` ID 仅作迁移别名）的 `preview` 输入会在已保存和运行中修订一致时自动选择网关，并打开只读 `/api/eos/v2/vision/ws` 流。订阅使用该修订和视觉节点可选的帧率、宽度及 JPEG 质量设置。输入未连接时需要手动选择来源；节点图过期或 EOS 目录修订不一致时，面板会显示原因并阻止订阅。面板显示实际接收帧率、尺寸、连接状态和错误。流中断后最多按有界间隔重试五次；“重试”可再次连接，“断开”则保持关闭。切换来源会关闭旧连接。每帧限制为最多 8 MiB JPEG 加元数据，包含长度前缀 JSON 元数据和 JPEG 字节。托管在 HTTPS 页面的版本可能需要浏览器允许访问本机环回地址。前台 `isos serve` 从已配置资源包提供 UI，无需用户服务。
 
-两个构建目录都包含 `index.html`、`assets/`、`IslandTeam.png` 和 `manifest.json`。清单包含 `schema_version: 1`、UI 版本、源码提交、`api_schema_version: 2` 和构建目标。独立 npm 服务与 IsOS 的已配置静态服务都在本机提供 `/en/isos` 与 `/cn/isos`；Island-web 在对应路径提供托管 HTML，并把资源放在 `/isosui/`。
+两个构建目录都包含 `index.html`、`assets/`、`IslandTeam.png` 和 `manifest.json`。清单包含 `schema_version: 1`、UI 版本、源码提交、`api_schema_version: 1` 和构建目标。独立 npm 服务与 IsOS 的已配置静态服务都在本机提供 `/en/isos` 与 `/cn/isos`；Island-web 在对应路径提供托管 HTML，并把资源放在 `/isosui/`。
 
 手动发布工作流从现有的 `v<package version>` 标签构建 `isosui-local-<tag>.tar.gz`、`isosui-hosted-<tag>.tar.gz` 和 `SHA256SUMS`。普通开发和固定提交构建不需要发布版本。发布后，工作流通过 IsosUI 的 `ISLAND_WEB_DISPATCH_TOKEN` 向 Island-web 发送 `isosui-release` 事件；该令牌需要 Island-web 仓库的 Contents 写入权限。Island-web 校验托管归档并创建网站更新 PR，检查通过后合并该 PR 才触发正常的网站部署。
 
@@ -68,7 +68,7 @@ EOS 控制工作台在 Node.js 22 环境下通过 `npm test`（25 个测试）�
 
 视觉自动连接检查：`npm test`（53 个测试）、`npm run build`（类型检查和两种构建）及 `git diff --check` 均通过。完整输出保存在 `logs/test/20261031-vision-autoconnect/`。网关选择测试覆盖标准及展开的节点路径、用户选择和不存在的连接。此次 UI 检查期间 IsOS 与 EOS 的本机 API 均未运行，因此浏览器实时流仍需集成验证。
 
-UI 选择器与构建验证（2026-10-31）：`npm test` 通过 45 项测试；`npm run build` 通过 TypeScript 检查、本地与托管构建；`git diff --check` 通过。完整本地日志保存在忽略提交的 `logs/test/20261031-build-catalog-visuals/{test,build}.log`。选择器及程序构建控件需要配套的 IsOS v2 接口；接口不可用时，UI 会提示选项服务不可用，现有节点图字段仍可查看。
+UI 选择器与构建验证（2026-10-31）：`npm test` 通过 45 项测试；`npm run build` 通过 TypeScript 检查、本地与托管构建；`git diff --check` 通过。完整本地日志保存在忽略提交的 `logs/test/20261031-build-catalog-visuals/{test,build}.log`。选择器及程序构建控件在当时需要配套的 IsOS 接口；接口不可用时，UI 会提示选项服务不可用，现有节点图字段仍可查看。
 
 文档对齐检查（2026-10-31）：`npm test` 通过 49 项测试；`npm run build` 通过 TypeScript 检查，以及两种构建产物和清单检查；`git diff --check` 通过。完整输出位于被忽略提交的 `logs/test/20261031-docs-code-alignment/` 目录。测试输出包含 Sass 旧版 JavaScript API 的弃用警告。
 
@@ -81,3 +81,5 @@ UI 选择器与构建验证（2026-10-31）：`npm test` 通过 45 项测试；`
 旧编辑器移除检查（2026-10-31）：`npm test` 通过 50 项测试，`npm run build` 通过类型检查及本地、托管构建和清单检查，`git diff --check` 通过。完整输出位于忽略 Git 的 `logs/test/20261031-remove-legacy-editor/`。当前编辑器及 API 客户端仍有测试覆盖；删除的配置档案图测试仅对应已退役的编辑器。
 
 仅添加节点集的预览检查（2026-10-31）：`npm test` 通过 51 项测试，`npm run build` 通过类型检查及本地、托管构建和清单检查，`git diff --check` 通过。完整输出位于忽略 Git 的 `logs/test/20261031-node-set-additive/`。测试覆盖预览删除现有节点时的拒绝行为。
+
+IsOS v1 接口检查（2026-10-31）：`npm test` 通过 53 项测试，`npm run build` 通过类型检查及两种构建，`git diff --check` 通过。本地与托管清单都报告 IsosUI `1.0.0` 和 IsOS API 模式版本 `1`。完整输出位于忽略 Git 的 `logs/test/20261031-v1-cutover/`。部署此资源包前，IsOS 服务端必须使用配套的 v1 接口。

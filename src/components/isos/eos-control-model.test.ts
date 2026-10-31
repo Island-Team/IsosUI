@@ -5,7 +5,7 @@ import type { NodeGraph, NodeInstance } from '../../services/isos/node-graph';
 
 const base: NodeInstance = { id: 'base_1', node_type: 'eos.hardware.base@v1.0', label: 'Base', description: '', movement: { modes: ['body_velocity'], limits: { max_linear_m_s: 1, max_angular_rad_s: 0.5, max_velocity_lease_ms: 300 } } };
 const manual: NodeInstance = { id: 'manual_1', node_type: 'eos.control.manual@v1.0', label: 'Drive', description: '', settings: { target: 'cores/eos/layers/hardware/groups/base/nodes/base_1' } };
-const graph: NodeGraph = { version: '2.0.0', robot: { id: 'robot', name: 'Robot' }, cores: { eos: { layers: { hardware: { groups: { base: { nodes: { base_1: base } } } }, control: { groups: { manual: { nodes: { manual_1: manual } } } } } } } };
+const graph: NodeGraph = { version: '1.0.0', robot: { id: 'robot', name: 'Robot' }, cores: { eos: { layers: { hardware: { groups: { base: { nodes: { base_1: base } } } }, control: { groups: { manual: { nodes: { manual_1: manual } } } } } } } };
 
 describe('EOS workbench admission model', () => {
   it('shows only registered graph control nodes and discovered graph hardware', () => {
@@ -24,7 +24,7 @@ describe('EOS workbench admission model', () => {
   });
   it('allows read-only Vision on an older active graph without using a stale default edge', () => {
     const document = { revision: 'new', graph };
-    const status = { schema_version: '2.0.0' as const, active_revision: 'old', state: 'running' as const, processes: [] };
+    const status = { schema_version: '1.0.0' as const, active_revision: 'old', state: 'running' as const, processes: [] };
     expect(visionRuntimeState(document, status)).toEqual({ active: true, graph: null });
     expect(visionRuntimeState(document, { ...status, active_revision: 'new' })).toEqual({ active: true, graph });
     expect(visionRuntimeState(document, { ...status, active_revision: null, state: 'stopped' })).toEqual({ active: false, graph: null });

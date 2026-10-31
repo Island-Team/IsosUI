@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { NodeGraph } from '@/services/isos/node-graph';
 import { applyNodeSelection, graphLayoutKey, graphMirrorKey, parseNodeMirrors, parseNodePositions, removeSelectedNodes } from './graph-canvas-state';
 
-const graph = (id: string): NodeGraph => ({ version: '2.0.0', robot: { id, name: id }, cores: {} });
+const graph = (id: string): NodeGraph => ({ version: '1.0.0', robot: { id, name: id }, cores: {} });
 
 describe('graph canvas state', () => {
   it('separates positions by robot identity, independent of graph revision', () => {

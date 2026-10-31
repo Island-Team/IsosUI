@@ -8,9 +8,9 @@ const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url),
 const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 const manifest = {
   schema_version: 1,
-  version: process.env.ISOSUI_VERSION || pkg.version,
+  version: pkg.version,
   source_commit: sourceCommit,
-  api_schema_version: 2,
+  api_schema_version: 1,
   build_target: target,
 };
 await mkdir(new URL(`../dist/${target}/`, import.meta.url), { recursive: true });

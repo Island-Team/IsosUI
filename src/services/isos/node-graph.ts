@@ -37,7 +37,7 @@ export interface NodeInstance {
   movement?: { modes: string[]; limits: Record<string, number> };
 }
 export interface NodeGraph {
-  version: '2.0.0';
+  version: '1.0.0';
   robot: { id: string; name: string };
   cores: Record<string, { layers: Record<string, { groups: Record<string, { nodes: Record<string, NodeInstance> }> }> }>;
 }
@@ -45,7 +45,7 @@ export interface NodeGraphDocument { revision: string; graph: NodeGraph }
 export interface NodeGraphDiagnostic { path: string; code?: string; message: string }
 export interface NodeGraphValidation { valid: boolean; diagnostics: NodeGraphDiagnostic[] }
 export interface ProcessStatus {
-  schema_version: '2.0.0';
+  schema_version: '1.0.0';
   saved_revision?: string;
   active_revision?: string | null;
   state?: 'stopped' | 'running' | 'degraded';
@@ -131,21 +131,21 @@ export function linkBackend(id: string, version: string, path: string, manifest?
 }
 export function getSetupStatus(): Promise<SetupStatus> { return request('/setup-status'); }
 export function controlProcesses(operation: 'run' | 'stop' | 'restart', revision?: string): Promise<ProcessStatus> {
-  return request('/process-control', 'POST', { schema_version: 2, operation, ...(revision ? { revision } : {}) });
+  return request('/process-control', 'POST', { schema_version: 1, operation, ...(revision ? { revision } : {}) });
 }
 export function getCoreReadiness(): Promise<CoreReadiness> { return request('/core-readiness'); }
 export function previewBackendLink(path: string, manifest?: string): Promise<LinkPreview> {
   return request('/packages/preview-link', 'POST', { path, ...(manifest ? { manifest } : {}) });
 }
-export function getNodeOptions(graph: NodeGraph): Promise<NodeOptions> { return request('/node-options', 'POST', { schema_version: 2, graph }); }
+export function getNodeOptions(graph: NodeGraph): Promise<NodeOptions> { return request('/node-options', 'POST', { schema_version: 1, graph }); }
 export function getLogPage(source: string, level: LogLevel, cursor?: string, limit = 200): Promise<LogPage> {
   const params = new URLSearchParams({ source, level, limit: String(Math.max(1, Math.min(200, Math.floor(limit)))) });
   if (cursor) params.set('cursor', cursor);
   return request(`/logs?${params.toString()}`);
 }
 export function validateNodeGraph(graph: NodeGraph): Promise<NodeGraphValidation> {
-  return request('/node-graph/validate', 'POST', { schema_version: 2, graph });
+  return request('/node-graph/validate', 'POST', { schema_version: 1, graph });
 }
 export function applyNodeGraph(revision: string, graph: NodeGraph): Promise<NodeGraphDocument> {
-  return request('/node-graph', 'PUT', { schema_version: 2, revision, graph });
+  return request('/node-graph', 'PUT', { schema_version: 1, revision, graph });
 }
