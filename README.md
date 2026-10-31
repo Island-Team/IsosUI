@@ -78,3 +78,5 @@ UI selector and build verification (2026-10-31): `npm test` passed 45 tests, `np
 Documentation alignment check (2026-10-31): `npm test` passed 49 tests, `npm run build` passed TypeScript checks and both bundle/manifest checks, and `git diff --check` passed. Full output is in the ignored `logs/test/20261031-docs-code-alignment/` directory. The test output includes a Sass legacy JavaScript API deprecation warning.
 
 Graph action and canvas stability check (2026-10-31): `npm test` passed 52 tests, `npm run build` passed TypeScript and both local/hosted bundle checks, and `git diff --check` passed. Complete output is in ignored `logs/test/20261031-graph-run-ui/`. The UI depends on the IsOS build-status and stale-build recovery API in the matching IsOS update.
+
+Optional core readiness check (2026-10-31): `npm run typecheck`, `npm test` (51 tests), and `npm run build` passed. The Graph page shows an absent core as “Not enabled in the saved graph” in a neutral status line. Full output is in ignored `logs/test/20261031-stale-setup-recovery/`.
