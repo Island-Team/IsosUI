@@ -15,8 +15,16 @@
   > header h1 { margin: 0; font-size: 1rem; white-space: nowrap; }
   > header div { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
   > header span { padding: 0 8px; color: var(--text-secondary); font-size: .8rem; }
-  > header button:nth-child(3) { @include buttons.primary; }
+  > header .node-graph-primary-action { @include buttons.primary; }
 }
+.node-graph-advanced { position: relative; }
+.node-graph-advanced > summary { display: flex; align-items: center; min-height: $control-height; padding: 4px 10px; border: 1px solid var(--border); border-radius: 5px; cursor: pointer; font-size: .82rem; list-style: none; }
+.node-graph-advanced > summary::-webkit-details-marker { display: none; }
+.node-graph-advanced > summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.node-graph-advanced[open] > div { position: absolute; z-index: 20; top: calc(100% + 4px); right: 0; display: grid; align-items: stretch; min-width: 200px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-elevated); box-shadow: var(--shadow-lg); }
+.node-graph-advanced[open] > div > button { justify-content: flex-start; }
+.node-graph-advanced[open] > div > small { padding: 0 4px 6px; color: var(--text-secondary); font-size: .7rem; }
+.node-graph-recovery { font-size: .82rem; }
 .node-graph-message { z-index: 5; position: absolute; top: 50px; left: 50%; transform: translateX(-50%); max-width: min(700px, calc(100vw - 20px)); margin: 0; padding: 9px 12px; border: 1px solid var(--border); border-left: 3px solid var(--primary); border-radius: 6px; background: var(--bg-elevated); box-shadow: var(--shadow-lg); overflow-wrap: anywhere; }
 .node-graph-body { display: grid; grid-template-columns: minmax(225px, 260px) minmax(0, 1fr) minmax(270px, 320px); flex: 1; min-height: 0; }
 .node-graph-body--library-collapsed { grid-template-columns: minmax(0, 1fr) minmax(270px, 320px); }
@@ -42,6 +50,8 @@
 .node-graph-canvas { position: relative; min-width: 0; min-height: 0; }
 .node-graph-canvas .react-flow { position: absolute; inset: 0; width: 100%; height: 100%; }
 .node-graph-canvas .react-flow__selection { border: 1px solid var(--primary); background: var(--primary-subtle); }
+// React Flow's group rectangle otherwise intercepts empty-space clicks and middle-button panning.
+.node-graph-canvas .react-flow__nodesselection-rect { pointer-events: none; cursor: default; }
 .node-graph-multi-selection { display: grid; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
 .node-graph-multi-selection p { margin: 0; }
 .node-graph-control-settings { display: grid; gap: 8px; padding: 10px 0; border-top: 1px solid var(--border); }
@@ -102,6 +112,13 @@
 .react-flow__edge.node-graph-edge-frequency--high .react-flow__edge-path { stroke-dasharray: 10 3; }
 .react-flow__edge.node-graph-edge-frequency--solid .react-flow__edge-path { stroke-dasharray: none; }
 .react-flow__edge.animated .react-flow__edge-path { animation: none; }
+// Keep wire metadata available to assistive technology and the inspector while reducing canvas clutter.
+.node-graph-canvas .react-flow__edge-textwrapper { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity $duration-fast ease, visibility $duration-fast ease; }
+.node-graph-canvas .react-flow__edge:hover .react-flow__edge-textwrapper,
+.node-graph-canvas .react-flow__edge:focus .react-flow__edge-textwrapper,
+.node-graph-canvas .react-flow__edge:focus-visible .react-flow__edge-textwrapper,
+.node-graph-canvas .react-flow__edge.selected .react-flow__edge-textwrapper { opacity: 1; visibility: visible; }
+.node-graph-canvas .react-flow__edge:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
 .node-graph-card--mirrored .node-graph-card__ports { flex-direction: row-reverse; }
 .node-graph-card--mirrored .node-graph-card__port { text-align: right; }
 .node-graph-card--mirrored .node-graph-card__port--output { text-align: left; }
