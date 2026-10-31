@@ -28,7 +28,7 @@ isos serve
 
 ## Workbench
 
-The node graph editor is the only IsOS configuration editor. It reads and saves the current `/node-graph` contract through the shared IsOS API client; the retired `/graph` and `/profiles` editor is no longer included in either bundle. IsosUI's first release version is `1.0.0`; IsOS uses API v1 and graph format `1.0.0`. The EOS bridge keeps its independent API v2 contract.
+The node graph editor is the only IsOS configuration editor. It reads and saves the current `/node-graph` contract through the shared IsOS API client; the retired `/graph` and `/profiles` editor is no longer included in either bundle. IsosUI's first release version is `0.1.0`; IsOS uses API v1 and graph format `1.0.0`. The EOS bridge keeps its independent API v2 contract.
 
 Home, Graph, and EGIA log panels read the unified IsOS `/api/isos/v1/logs` endpoint with a cursor. Home opens **All sources** by default, including when no process is running; the source menu can narrow the view to a specific process. The panel also retains browser console, error, and graph-canvas events for the current page session. **All sources** combines those browser entries with IsOS manager events, service logs, EOS, and other sources; **Browser** isolates client events. The display level defaults to info and above; changing it filters the buffered entries in the browser without changing what IsOS records. Selecting another source starts its cursor from the beginning, and log rotation clears the previous stream. Follow pauses polling when unchecked or while the page is hidden.
 
@@ -91,4 +91,4 @@ Legacy editor removal check (2026-10-31): `npm test` passed 50 tests, `npm run b
 
 Additive node-set preview check (2026-10-31): `npm test` passed 51 tests, `npm run build` passed typecheck and both bundle/manifest checks, and `git diff --check` passed. Full output is in ignored `logs/test/20261031-node-set-additive/`. The tests cover rejection of a preview that removes an existing node.
 
-IsOS v1 contract check (2026-10-31): `npm test` passed 53 tests, `npm run build` passed typecheck and both bundles, and `git diff --check` passed. The local and hosted manifests both report IsosUI `1.0.0` and IsOS API schema `1`. Full output is in ignored `logs/test/20261031-v1-cutover/`. The IsOS server must use the matching v1 contract before this bundle is deployed.
+IsOS v1 contract check (2026-10-31): `npm test` passed 53 tests, `npm run build` passed typecheck and both bundles, and `git diff --check` passed. The local and hosted manifests both report IsosUI `0.1.0` and IsOS API schema `1`. Full output is in ignored `logs/test/20261031-version-alignment/`. The IsOS server must use the matching v1 contract before this bundle is deployed.
