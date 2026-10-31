@@ -8,20 +8,27 @@ import type { LogLine } from '../../services/isos/node-graph';
 const line = (level: string): LogLine => ({ timestamp: '2026-10-31T00:00:00Z', source: 'isos', level, message: level });
 
 describe('IsOS log panel', () => {
-  it('offers all sources and a warning display threshold in both languages', () => {
+  it('offers all sources and an informational display threshold in both languages', () => {
     const en = renderToStaticMarkup(React.createElement(IsosLogsPanel, { lang: 'en', onClose: () => undefined }));
     const cn = renderToStaticMarkup(React.createElement(IsosLogsPanel, { lang: 'cn', onClose: () => undefined }));
     expect(en).toContain('<option value="all" selected="">All sources</option>');
     expect(en).toContain('<option value="browser">Browser</option>');
     expect(cn).toContain('<option value="browser">浏览器</option>');
-    expect(en).toContain('<option value="warn" selected="">Warnings and errors</option>');
+    expect(en).toContain('<option value="info" selected="">Info and above</option>');
     expect(cn).toContain('所有来源');
-    expect(cn).toContain('警告及以上');
+    expect(cn).toContain('<option value="info" selected="">信息及以上</option>');
   });
 
   it('includes the selected managed process even when it is not a predefined source', () => {
     const html = renderToStaticMarkup(React.createElement(IsosLogsPanel, { lang: 'en', initialSource: 'eos-core', onClose: () => undefined }));
     expect(html).toContain('<option value="eos-core" selected="">eos-core</option>');
+  });
+
+  it('lists running process IDs as selectable sources in the unified view', () => {
+    const html = renderToStaticMarkup(React.createElement(IsosLogsPanel, { lang: 'cn', sources: ['eos-core', 'egia-core'], onClose: () => undefined }));
+    expect(html).toContain('<option value="all" selected="">所有来源</option>');
+    expect(html).toContain('<option value="eos-core">eos-core</option>');
+    expect(html).toContain('<option value="egia-core">egia-core</option>');
   });
 
   it('filters displayed severity without discarding the buffered stream', () => {

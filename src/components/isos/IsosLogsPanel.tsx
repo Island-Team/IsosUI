@@ -22,9 +22,9 @@ export function appendLogPage(current: LogLine[], page: LogPage): LogLine[] {
   return [...(page.rotated ? [] : current), ...page.lines].slice(-1000);
 }
 
-export function IsosLogsPanel({ lang, onClose, initialSource = 'all' }: { lang: Language; onClose: () => void; initialSource?: string }): React.ReactElement {
+export function IsosLogsPanel({ lang, onClose, initialSource = 'all', sources = [] }: { lang: Language; onClose: () => void; initialSource?: string; sources?: string[] }): React.ReactElement {
   const [source, setSource] = useState(initialSource);
-  const [level, setLevel] = useState<LogLevel>('warn');
+  const [level, setLevel] = useState<LogLevel>('info');
   const [lines, setLines] = useState<LogLine[]>([]);
   const [error, setError] = useState('');
   const [browserLines, setBrowserLines] = useState(getBrowserLogs);
@@ -69,7 +69,7 @@ export function IsosLogsPanel({ lang, onClose, initialSource = 'all' }: { lang: 
   return <section className="node-graph-logs" aria-label={copy.title}>
     <header>
       <strong>{copy.title}</strong>
-      <label>{copy.source}<select value={source} onChange={(event) => setSource(event.target.value)}>{(SOURCES.includes(source) ? SOURCES : [source, ...SOURCES]).map((name) => <option key={name} value={name}>{name === 'all' ? copy.all : name === 'browser' ? (lang === 'cn' ? '浏览器' : 'Browser') : name}</option>)}</select></label>
+      <label>{copy.source}<select value={source} onChange={(event) => setSource(event.target.value)}>{[...new Set([source, ...SOURCES, ...sources])].map((name) => <option key={name} value={name}>{name === 'all' ? copy.all : name === 'browser' ? (lang === 'cn' ? '浏览器' : 'Browser') : name}</option>)}</select></label>
       <label>{copy.level}<select value={level} onChange={(event) => setLevel(event.target.value as LogLevel)}>{LOG_LEVELS.map((name) => <option key={name} value={name}>{copy[name]}</option>)}</select></label>
       <label className="node-graph-logs__follow"><input type="checkbox" checked={following} onChange={(event) => setFollowing(event.target.checked)} />{copy.follow}</label>
       <button type="button" onClick={onClose} aria-label={`${copy.close} ${copy.title}`}>×</button>
