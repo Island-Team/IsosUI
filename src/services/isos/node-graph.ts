@@ -1,4 +1,4 @@
-import { request } from './config-manager';
+import { request } from './api-client';
 
 /** One registered node type. Placement belongs to this definition, not an instance setting. */
 export interface NodeTypeDefinition {

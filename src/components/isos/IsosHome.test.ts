@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-vi.mock('../../services/isos/config-manager', () => ({ request: vi.fn() }));
+vi.mock('../../services/isos/api-client', () => ({ request: vi.fn() }));
 import { backendSceneChoices, graphWithBackendScene, requiredBackend } from '../../services/isos/node-graph';
 import type { NodeGraph } from '@/services/isos/node-graph';
 

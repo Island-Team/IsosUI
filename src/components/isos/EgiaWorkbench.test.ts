@@ -1,7 +1,7 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-vi.mock('../../services/isos/config-manager', () => ({ request: vi.fn() }));
+vi.mock('../../services/isos/api-client', () => ({ request: vi.fn() }));
 import { EgiaWorkbench, egiaTabs } from './EgiaWorkbench';
 
 describe('EGIA workbench navigation', () => {

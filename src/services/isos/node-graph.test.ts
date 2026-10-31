@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getCoreReadiness, previewBackendLink, getInstalledPackages, getLogPage, getNodeOptions, getNodeSets, installBackend, linkBackend, previewNodeSet, type NodeGraph, type NodeSetDefinition } from './node-graph';
-import { request } from './config-manager';
+import { request } from './api-client';
 
-vi.mock('./config-manager', () => ({ request: vi.fn() }));
+vi.mock('./api-client', () => ({ request: vi.fn() }));
 
 describe('unified log API', () => {
   it('requests a specific source, minimum severity, and cursor', async () => {
