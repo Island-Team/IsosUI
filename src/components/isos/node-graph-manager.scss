@@ -42,8 +42,6 @@
 .node-graph-interface-legend { display: grid; gap: 5px; padding: 9px; border: 1px solid var(--border); border-radius: 7px; font-size: .7rem; }
 .node-graph-set-library { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--border); }
 .node-graph-set-library > p { margin: 0; color: var(--text-secondary); font-size: .75rem; }
-.node-graph-set-library .node-graph-set-replace { flex-direction: row; align-items: flex-start; }
-.node-graph-set-replace input { width: auto; min-height: auto; margin-top: 2px; }
 .node-graph-set-preview { display: grid; gap: 8px; padding: 9px; border: 1px solid var(--border); border-radius: 6px; font-size: .74rem; }
 .node-graph-set-preview ul { max-height: 120px; margin: 0; padding-left: 18px; overflow: auto; overflow-wrap: anywhere; }
 .node-graph-set-preview button { justify-self: start; }

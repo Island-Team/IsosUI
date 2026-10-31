@@ -38,6 +38,12 @@ export function graphNodes(graph: NodeGraph, types: NodeTypeDefinition[]): Graph
     })))));
 }
 
+/** Package previews may add nodes but must never remove existing graph nodes. */
+export function removedNodePaths(current: NodeGraph, preview: NodeGraph): string[] {
+  const nextPaths = new Set(graphNodes(preview, []).map((entry) => entry.path));
+  return graphNodes(current, []).map((entry) => entry.path).filter((path) => !nextPaths.has(path));
+}
+
 function graphCopy(graph: NodeGraph): NodeGraph { return structuredClone(graph); }
 
 function nodeSlot(graph: NodeGraph, path: string): { nodes: Record<string, NodeInstance>; id: string } | undefined {
