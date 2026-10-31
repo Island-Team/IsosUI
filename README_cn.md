@@ -69,3 +69,5 @@ UI 选择器与构建验证（2026-10-31）：`npm test` 通过 45 项测试；`
 文档对齐检查（2026-10-31）：`npm test` 通过 49 项测试；`npm run build` 通过 TypeScript 检查，以及两种构建产物和清单检查；`git diff --check` 通过。完整输出位于被忽略提交的 `logs/test/20261031-docs-code-alignment/` 目录。测试输出包含 Sass 旧版 JavaScript API 的弃用警告。
 
 节点图操作与画布稳定性检查（2026-10-31）：`npm test` 通过 52 项测试，`npm run build` 通过 TypeScript 及本地/托管构建检查，`git diff --check` 通过。完整输出保存在忽略提交的 `logs/test/20261031-graph-run-ui/`。此界面依赖对应 IsOS 更新中的构建状态及过期构建恢复 API。
+
+可选核心就绪状态检查（2026-10-31）：`npm run typecheck`、`npm test`（51 个测试）和 `npm run build` 均通过。图页面会用普通状态行显示未加入保存图的核心，提示“保存的节点图中未启用”。完整输出保存在忽略 Git 的 `logs/test/20261031-stale-setup-recovery/`。

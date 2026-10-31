@@ -65,7 +65,7 @@ export interface SetupStatus { ready?: boolean; issues?: string[]; [key: string]
 export interface LogLine { timestamp: string; level: string; source: string; message: string }
 export interface LogPage { lines: LogLine[]; next_cursor: string | null; rotated: boolean }
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
-export interface CoreReadinessEntry { core: string; path: string | null; version: string | null; compatible: boolean; configured: boolean; graph_configured: boolean; running: boolean; ready: boolean; reason?: string | null; action?: string | null }
+export interface CoreReadinessEntry { core: string; path: string | null; version: string | null; compatible: boolean; configured: boolean; enabled?: boolean; graph_configured: boolean; running: boolean; ready: boolean; reason?: string | null; action?: string | null }
 export interface CoreReadiness { cores: CoreReadinessEntry[] }
 export interface LinkPreview { id: string; version: string; ready: boolean; issues: string[] }
 export interface AdapterFamilyOption { id: string; device_kinds: string[]; package?: { id: string; version: string }; compiled: boolean; transport: string; description: string; available: boolean; reason?: string }
