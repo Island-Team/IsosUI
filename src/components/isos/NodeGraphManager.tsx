@@ -269,7 +269,12 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
     finally { setBusy(false); }
   }, [dirty, copy.discard, copy.disconnected, lang]);
   useEffect(() => { void refresh(); }, []);
-  useEffect(() => { if (!visible) return; const timer = window.setInterval(() => { if (document.visibilityState === 'visible') { void getProcessStatus().then(setProcessStatus).catch(() => undefined); void getEosBuildStatus().then(setBuildStatus).catch(() => undefined); } }, 3000); return () => window.clearInterval(timer); }, [visible]);
+  useEffect(() => {
+    if (!visible) return;
+    const statusTimer = window.setInterval(() => { if (document.visibilityState === 'visible') void getProcessStatus().then(setProcessStatus).catch(() => undefined); }, 3000);
+    const buildTimer = window.setInterval(() => { if (document.visibilityState === 'visible') void getEosBuildStatus().then(setBuildStatus).catch(() => undefined); }, 30000);
+    return () => { window.clearInterval(statusTimer); window.clearInterval(buildTimer); };
+  }, [visible]);
   useEffect(() => {
     const reloadCatalog = (): void => { void Promise.all([getNodeTypes(), getNodeSets()]).then(([catalog, sets]) => { setTypes(catalog.types); setDataTypes(catalog.data_types || []); setPrimitiveSpecs(catalog.primitive_specs || []); setNodeSets(sets.sets); setSetKey(''); setSetValues({}); setSetPreview(null); }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : String(error))); };
     window.addEventListener('isosui:packages-changed', reloadCatalog);
