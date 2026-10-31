@@ -19,14 +19,12 @@ describe('package node set API', () => {
     vi.mocked(request).mockClear();
     const graph: NodeGraph = { version: '2.0.0', robot: { id: 'test', name: 'Test' }, cores: {} };
     const set: NodeSetDefinition = { package: { id: 'island/mujoco-sim', version: '2.0.0' }, id: 'hardware', parameters: { scene: { type: 'string', default: 'demo' } }, nodes: [] };
-    vi.mocked(request).mockResolvedValueOnce({ sets: [set] }).mockResolvedValueOnce({ graph, added_paths: [] }).mockResolvedValueOnce({ graph, added_paths: [] });
+    vi.mocked(request).mockResolvedValueOnce({ sets: [set] }).mockResolvedValueOnce({ graph, added_paths: [] });
     expect(await getNodeSets()).toEqual({ sets: [set] });
     expect(await previewNodeSet(set, graph, { scene: 'demo' })).toEqual({ graph, added_paths: [] });
-    expect(await previewNodeSet(set, graph, { scene: 'demo' }, true)).toEqual({ graph, added_paths: [] });
     expect(vi.mocked(request).mock.calls).toEqual([
       ['/node-sets'],
       ['/node-sets/preview', 'POST', { package: set.package, set_id: set.id, graph, values: { scene: 'demo' } }],
-      ['/node-sets/preview', 'POST', { package: set.package, set_id: set.id, graph, values: { scene: 'demo' }, replace_legacy_mujoco: true }],
     ]);
   });
 });

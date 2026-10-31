@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { NodeGraph, NodeTypeDefinition } from '@/services/isos/node-graph';
-import { addNode, bindPrimitiveTarget, canonicalNodePath, connectNodes, disconnectInput, graphNodes, inputSources, nextNodeId, nodePath, removeNode, renameNode, updateNode } from './node-graph-edits';
+import { addNode, bindPrimitiveTarget, canonicalNodePath, connectNodes, disconnectInput, graphNodes, inputSources, nextNodeId, nodePath, removeNode, removedNodePaths, renameNode, updateNode } from './node-graph-edits';
 import { withControlTarget, withSkillSteps } from './control-node-config';
 
 const dispatcher: NodeTypeDefinition = { id: 'eos.dispatcher.control@v1.0', core: 'eos', layer: 'dispatcher', group: 'control', kind: 'software', lifecycle: 'internal', capabilities: ['admission'], settings: [], inputs: [], outputs: [{ name: 'base_command', data_type: 'base_movement', required: false }] };
@@ -9,6 +9,11 @@ const camera: NodeTypeDefinition = { id: 'eos.hardware.camera@v1.0', core: 'eos'
 const empty = (): NodeGraph => ({ version: '2.0.0', robot: { id: 'robot', name: 'Robot' }, cores: {} });
 
 describe('v2 node graph edits', () => {
+  it('detects a package preview that removes an existing node', () => {
+    const graph = addNode(empty(), camera, 'front');
+    expect(removedNodePaths(graph, addNode(graph, camera, 'rear'))).toEqual([]);
+    expect(removedNodePaths(graph, empty())).toEqual(['eos/hardware/camera/front']);
+  });
   it('uses the final node type and next free index as the default ID', () => {
     const first = nextNodeId(empty(), camera);
     expect(first).toBe('camera_1');

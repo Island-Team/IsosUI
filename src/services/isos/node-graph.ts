@@ -118,8 +118,8 @@ export function getNodeGraph(): Promise<NodeGraphDocument> { return request('/no
 export function getNodeTypes(): Promise<{ types: NodeTypeDefinition[]; data_types?: DataTypeDefinition[]; primitive_specs?: PrimitiveSpec[] }> { return request('/node-types'); }
 export function getNodeSets(): Promise<{ sets: NodeSetDefinition[] }> { return request('/node-sets'); }
 export function getInstalledPackages(): Promise<{ installed: InstalledPackage[] }> { return request('/packages'); }
-export function previewNodeSet(set: NodeSetDefinition, graph: NodeGraph, values: Record<string, string>, replaceLegacyMujoco = false): Promise<NodeSetPreview> {
-  return request('/node-sets/preview', 'POST', { package: set.package, set_id: set.id, graph, values, ...(replaceLegacyMujoco ? { replace_legacy_mujoco: true } : {}) });
+export function previewNodeSet(set: NodeSetDefinition, graph: NodeGraph, values: Record<string, string>): Promise<NodeSetPreview> {
+  return request('/node-sets/preview', 'POST', { package: set.package, set_id: set.id, graph, values });
 }
 export function getProcessStatus(): Promise<ProcessStatus> { return request('/process-status'); }
 export function getBackends(): Promise<{ backends: BackendPackage[] }> { return request('/backends'); }
