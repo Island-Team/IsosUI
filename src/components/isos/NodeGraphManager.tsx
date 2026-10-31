@@ -203,13 +203,30 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
       if (size === lastCanvasSize.current) return;
       lastCanvasSize.current = size;
       browserLog(canvas.clientWidth && canvas.clientHeight ? 'debug' : 'warn', `Graph canvas ${size}; viewport ${JSON.stringify(flowInstance.getViewport())}`);
-      if (canvas.clientWidth && canvas.clientHeight && !initialFitDone.current && !activeGesture.current) {
-        initialFitDone.current = true;
-        requestAnimationFrame(() => { void flowInstance.fitView({ padding: 0.15 }); });
-      }
     });
     observer.observe(canvas);
     return () => observer.disconnect();
+  }, [visible, flowInstance, entries.length]);
+  useEffect(() => {
+    if (!visible || !flowInstance || !entries.length || initialFitDone.current) return;
+    let frame = 0;
+    let cancelled = false;
+    let attempts = 0;
+    const fitWhenReady = (): void => {
+      if (cancelled || initialFitDone.current) return;
+      if (activeGesture.current) { initialFitDone.current = true; return; }
+      const canvas = canvasRef.current;
+      const measured = flowInstance.getNodes().some((node) => Boolean(node.width && node.height));
+      if (!canvas?.clientWidth || !canvas.clientHeight || !measured) {
+        if (++attempts < 120) frame = requestAnimationFrame(fitWhenReady);
+        else browserLog('warn', 'Graph initial fit skipped because the canvas or nodes were not measured');
+        return;
+      }
+      initialFitDone.current = true;
+      void flowInstance.fitView({ padding: 0.15 });
+    };
+    frame = requestAnimationFrame(fitWhenReady);
+    return () => { cancelled = true; cancelAnimationFrame(frame); };
   }, [visible, flowInstance, entries.length]);
   useEffect(() => {
     if (!visible || !flowInstance || !entries.length) return;
