@@ -60,12 +60,12 @@ export async function request<T>(path: string, method = 'GET', body?: unknown): 
     };
     response = await fetch(`${BASE}${path}`, options);
   } catch {
-    throw new Error(`Cannot reach IsOS at ${ISOSUI_API_ORIGIN}. Start IsOS and check the service address and port.`);
+    throw new Error(`Cannot reach IsOS at ${ISOSUI_API_ORIGIN}. Run isos serve and check the service address and port.`);
   }
   let envelope: Envelope<T> | null = null;
   try { envelope = await response.json() as Envelope<T>; } catch { /* HTTP failures can be plain text. */ }
   if (response.ok && !envelope) {
-    throw new Error('IsOS returned a page instead of API data. Stop the older IsOS server and run isos init again.');
+    throw new Error('The IsOS API address returned a page instead of API data. Check the API port, then run isos serve.');
   }
   if (envelope && envelope.schema_version !== 2) {
     throw new Error('This IsosUI build needs the IsOS v2 API. Update IsOS or use a compatible UI release.');
