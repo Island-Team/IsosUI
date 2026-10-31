@@ -215,6 +215,6 @@ export function EosWorkbench({ lang, onOpenGraph, graphDirty }: Props): React.Re
       const kind = hardwareKind(entry.node.node_type); const reading = readings[entry.path]; const badge = monitorBadge(reading, clock);
       return <article className={`eos-monitor__card eos-monitor__card--${kind}`} key={entry.path}><header><h3>{entry.node.label || entry.node.id}</h3><span className={`eos-monitor__${badge}`}>{copy[badge]}</span></header><p><code>{kind}</code> · {copy.status}: {reading?.status?.state || '—'} · {copy.health}: {reading?.health?.state || '—'}</p>{reading?.status?.active_command_id && <p>{copy.command}: <code>{reading.status.active_command_id}</code></p>}{reading?.health?.message && <p>{reading.health.message}</p>}{reading?.error && <p role="alert">{reading.error}</p>}{kind !== 'camera' && <><h4>{copy.observation}</h4><Observation kind={kind || ''} value={reading?.observation} />{reading?.observationAt && <p>{copy.update}: {new Date(reading.observationAt).toLocaleTimeString()}</p>}</>}</article>;
     })}</div> : <p>{copy.noHardware}</p>}</section>
-    <VisionPanel lang={lang} graph={visionGraph} active={visionActive} />
+    <VisionPanel lang={lang} graph={visionGraph} active={visionActive} revision={visionGraph ? status?.active_revision || '' : ''} />
   </main>;
 }

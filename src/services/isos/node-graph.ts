@@ -62,13 +62,12 @@ export interface NodeSetDefinition {
 }
 export interface NodeSetPreview { graph: NodeGraph; added_paths: string[] }
 export interface SetupStatus { ready?: boolean; issues?: string[]; [key: string]: unknown }
-export interface ProcessLog { node?: string; lines?: string[]; text?: string; [key: string]: unknown }
 export interface LogLine { timestamp: string; level: string; source: string; message: string }
 export interface LogPage { lines: LogLine[]; next_cursor: string | null; rotated: boolean }
-export interface BuildReceipt { component: 'eos'; product_version: string; source_commit: string; source_fingerprint?: string; binaries: Record<string, string>; sha256: Record<string, string> }
-export interface EosBuildStatus { selected: BuildReceipt | null; source_current: boolean; stale_reason: string | null }
-export interface BuildBinariesReply { receipt: BuildReceipt; suggested_graph?: NodeGraphDocument }
-export interface SelectBinariesReply { receipt: BuildReceipt; graph: NodeGraphDocument }
+export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
+export interface CoreReadinessEntry { core: string; path: string | null; version: string | null; compatible: boolean; configured: boolean; enabled?: boolean; graph_configured: boolean; running: boolean; ready: boolean; reason?: string | null; action?: string | null }
+export interface CoreReadiness { cores: CoreReadinessEntry[] }
+export interface LinkPreview { id: string; version: string; ready: boolean; issues: string[] }
 export interface AdapterFamilyOption { id: string; device_kinds: string[]; package?: { id: string; version: string }; compiled: boolean; transport: string; description: string; available: boolean; reason?: string }
 export interface PrimitiveBindingOption { node_type: string; device_kind: string; movement_types: string[]; available: boolean; reason?: string }
 export interface HardwareTargetOption { path: string; node_type: string; device_kind: string; adapter_type: string; movement_types: string[]; available: boolean; reason?: string }
@@ -134,17 +133,13 @@ export function getSetupStatus(): Promise<SetupStatus> { return request('/setup-
 export function controlProcesses(operation: 'run' | 'stop' | 'restart', revision?: string): Promise<ProcessStatus> {
   return request('/process-control', 'POST', { schema_version: 2, operation, ...(revision ? { revision } : {}) });
 }
-export function buildEosBinaries(): Promise<BuildBinariesReply> { return request('/build-binaries', 'POST', { schema_version: 2, target: 'eos', install_deps: false }); }
-export function getEosBuildStatus(): Promise<EosBuildStatus> { return request('/build-binaries'); }
-export function selectEosBinaries(selector: string, revision: string): Promise<SelectBinariesReply> {
-  return request('/build-binaries/select', 'POST', { schema_version: 2, selector, revision });
+export function getCoreReadiness(): Promise<CoreReadiness> { return request('/core-readiness'); }
+export function previewBackendLink(path: string, manifest?: string): Promise<LinkPreview> {
+  return request('/packages/preview-link', 'POST', { path, ...(manifest ? { manifest } : {}) });
 }
 export function getNodeOptions(graph: NodeGraph): Promise<NodeOptions> { return request('/node-options', 'POST', { schema_version: 2, graph }); }
-export function getProcessLogs(node: string, lines = 100): Promise<ProcessLog> {
-  return request(`/process-logs/${encodeURIComponent(node)}?lines=${Math.max(1, Math.min(500, Math.floor(lines)))}`);
-}
-export function getLogPage(source: string, cursor?: string, limit = 200): Promise<LogPage> {
-  const params = new URLSearchParams({ source, limit: String(Math.max(1, Math.min(200, Math.floor(limit)))) });
+export function getLogPage(source: string, level: LogLevel, cursor?: string, limit = 200): Promise<LogPage> {
+  const params = new URLSearchParams({ source, level, limit: String(Math.max(1, Math.min(200, Math.floor(limit)))) });
   if (cursor) params.set('cursor', cursor);
   return request(`/logs?${params.toString()}`);
 }

@@ -25,7 +25,7 @@
 .node-graph-advanced[open] > div > button { justify-content: flex-start; }
 .node-graph-advanced[open] > div > small { padding: 0 4px 6px; color: var(--text-secondary); font-size: .7rem; }
 .node-graph-recovery { font-size: .82rem; }
-.node-graph-message { z-index: 5; position: absolute; top: 50px; left: 50%; transform: translateX(-50%); max-width: min(700px, calc(100vw - 20px)); margin: 0; padding: 9px 12px; border: 1px solid var(--border); border-left: 3px solid var(--primary); border-radius: 6px; background: var(--bg-elevated); box-shadow: var(--shadow-lg); overflow-wrap: anywhere; }
+.node-graph-note { margin: 3px 12px; color: var(--text-secondary); font-size: .82rem; line-height: 1.35; overflow-wrap: anywhere; }
 .node-graph-body { display: grid; grid-template-columns: minmax(225px, 260px) minmax(0, 1fr) minmax(270px, 320px); flex: 1; min-height: 0; }
 .node-graph-body--library-collapsed { grid-template-columns: minmax(0, 1fr) minmax(270px, 320px); }
 .node-graph-body--side-collapsed { grid-template-columns: minmax(225px, 260px) minmax(0, 1fr); }
@@ -166,6 +166,7 @@
 .node-graph-capabilities label { flex-direction: row; align-items: center; }
 .node-graph-capabilities input { width: auto; min-height: auto; }
 .node-graph-error { color: var(--error); }
+.node-graph-manager > .node-graph-error { margin: 3px 12px; font-size: .82rem; line-height: 1.35; overflow-wrap: anywhere; }
 .node-graph-remove { margin-top: 12px; align-self: flex-start; }
 .node-graph-side ul { margin: 0; padding-left: 18px; overflow-wrap: anywhere; font-size: .76rem; }
 .node-graph-side li { margin: 6px 0; }

@@ -1,11 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildEosBinaries, selectEosBinaries, getInstalledPackages, getNodeOptions, getNodeSets, installBackend, linkBackend, previewNodeSet, type NodeGraph, type NodeSetDefinition } from './node-graph';
+import { getCoreReadiness, previewBackendLink, getInstalledPackages, getLogPage, getNodeOptions, getNodeSets, installBackend, linkBackend, previewNodeSet, type NodeGraph, type NodeSetDefinition } from './node-graph';
 import { request } from './config-manager';
 
 vi.mock('./config-manager', () => ({ request: vi.fn() }));
 
+describe('unified log API', () => {
+  it('requests a specific source, minimum severity, and cursor', async () => {
+    vi.mocked(request).mockClear().mockResolvedValue({ lines: [], next_cursor: null, rotated: false });
+    await getLogPage('eos/core', 'warn', 'page 1', 500);
+    expect(vi.mocked(request).mock.calls).toEqual([
+      ['/logs?source=eos%2Fcore&level=warn&limit=200&cursor=page+1'],
+    ]);
+  });
+});
+
 describe('package node set API', () => {
   it('lists installed contributions and previews composition without applying a graph revision', async () => {
+    vi.mocked(request).mockClear();
     const graph: NodeGraph = { version: '2.0.0', robot: { id: 'test', name: 'Test' }, cores: {} };
     const set: NodeSetDefinition = { package: { id: 'island/mujoco-sim', version: '2.0.0' }, id: 'hardware', parameters: { scene: { type: 'string', default: 'demo' } }, nodes: [] };
     vi.mocked(request).mockResolvedValueOnce({ sets: [set] }).mockResolvedValueOnce({ graph, added_paths: [] }).mockResolvedValueOnce({ graph, added_paths: [] });
@@ -42,23 +53,17 @@ describe('generic package acquisition API', () => {
   });
 });
 
-describe('build and selector API', () => {
-  it('uses the CLI shared EOS build service and graph-aware selector catalog', async () => {
+describe('readiness and local bundle preview API', () => {
+  it('reads configured core readiness and previews bundle identity before linking', async () => {
     const graph: NodeGraph = { version: '2.0.0', robot: { id: 'test', name: 'Test' }, cores: {} };
-    vi.mocked(request).mockClear().mockResolvedValueOnce({ receipt: { component: 'eos' } }).mockResolvedValueOnce({ adapter_families: [], primitive_bindings: [], targets: [] });
-    await buildEosBinaries();
+    vi.mocked(request).mockClear().mockResolvedValueOnce({ cores: [] }).mockResolvedValueOnce({ id: 'island/mujoco-sim', version: '2.0.0', ready: true, issues: [] }).mockResolvedValueOnce({ adapter_families: [], primitive_bindings: [], targets: [] });
+    await getCoreReadiness();
+    await previewBackendLink('/opt/mujoco', '/opt/mujoco/release.json');
     await getNodeOptions(graph);
     expect(vi.mocked(request).mock.calls).toEqual([
-      ['/build-binaries', 'POST', { schema_version: 2, target: 'eos', install_deps: false }],
+      ['/core-readiness'],
+      ['/packages/preview-link', 'POST', { path: '/opt/mujoco', manifest: '/opt/mujoco/release.json' }],
       ['/node-options', 'POST', { schema_version: 2, graph }],
-    ]);
-  });
-  it('selects a staged EOS build against the exact saved graph revision', async () => {
-    vi.mocked(request).mockClear().mockResolvedValueOnce({ receipt: { component: 'eos', source_commit: 'abc' }, graph: { revision: 'next', graph: { version: '2.0.0', robot: { id: 'test', name: 'Test' }, cores: {} } } });
-    const result = await selectEosBinaries('abc', 'current');
-    expect(result.graph.revision).toBe('next');
-    expect(vi.mocked(request).mock.calls).toEqual([
-      ['/build-binaries/select', 'POST', { schema_version: 2, selector: 'abc', revision: 'current' }],
     ]);
   });
 });

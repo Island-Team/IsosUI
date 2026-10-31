@@ -63,3 +63,7 @@
 .isos-home__logs pre { min-height: 100px; max-height: 350px; padding: 12px; overflow: auto; color: var(--text); background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; white-space: pre-wrap; }
 @media (pointer: coarse), (max-width: 576px) { .isos-home button, .isos-workbench__nav button, .isos-home__package-install input, .isos-home select { min-height: $touch-target; } }
 @media (max-width: 720px) { .isos-workbench__nav { flex-wrap: wrap; padding: $space-2 $space-3; } .isos-workbench__nav > div { order: 3; flex-basis: 100%; overflow-x: auto; } .isos-home__overview, .isos-home__columns { grid-template-columns: 1fr; } .isos-home__heading { align-items: flex-start; flex-direction: column; } }
+
+.isos-home__link-preview, .isos-home__readiness li { padding: 9px 12px; border: 1px solid var(--border); border-radius: 6px; overflow-wrap: anywhere; }
+.isos-home__link-preview p, .isos-home__readiness p { margin: 4px 0; }
+.isos-home__readiness { display: grid; gap: 8px; padding: 0; list-style: none; }

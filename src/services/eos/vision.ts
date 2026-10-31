@@ -11,12 +11,18 @@ export interface VisionFrame { metadata: VisionFrameMetadata; jpeg: Blob }
 export interface VisionSubscription { op: 'subscribe'; gate_path: string; revision: string; target_fps?: number; max_width_px?: number; jpeg_quality?: number }
 type LoopbackRequestInit = RequestInit & { targetAddressSpace?: 'loopback' };
 
+/** Retain an operator choice while it exists; otherwise use only the graph-linked gate. */
+export function chooseVisionGate(gates: VisionGate[], current: string, linked: string): string {
+  const canonical = (path: string): string => path.replace(/^cores\/([^/]+)\/layers\/([^/]+)\/groups\/([^/]+)\/nodes\/([^/]+)$/, '$1/$2/$3/$4');
+  return gates.find((gate) => gate.path === current)?.path || gates.find((gate) => canonical(gate.path) === linked)?.path || '';
+}
+
 export async function getVisionGates(): Promise<VisionGates> {
   const options: LoopbackRequestInit = { credentials: 'omit', cache: 'no-store', mode: 'cors', targetAddressSpace: 'loopback', signal: AbortSignal.timeout(4000) };
   const response = await fetch(`${BASE}/gates`, options);
   if (!response.ok) throw new Error(`EOS Vision discovery failed (${response.status}).`);
   const body = await response.json() as VisionGates;
-  if (!body || typeof body.revision !== 'string' || !Array.isArray(body.gates)) throw new Error('EOS returned an invalid Vision gate catalog.');
+  if (!body || typeof body.revision !== 'string' || !body.revision || !Array.isArray(body.gates) || body.gates.some((gate) => !gate || typeof gate.path !== 'string' || !gate.path)) throw new Error('EOS returned an invalid Vision gate catalog.');
   return body;
 }
 
