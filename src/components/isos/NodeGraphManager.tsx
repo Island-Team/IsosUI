@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, { Background, Handle, MiniMap, Position, ReactFlowProvider, SelectionMode, type Connection, type Edge, type Node, type NodeChange, type NodeProps, type ReactFlowInstance } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { type NodeOptions, type PrimitiveSpec, applyNodeGraph, backendSceneChoices, controlProcesses, getBackends, getNodeGraph, getNodeSets, getNodeTypes, getProcessStatus, buildEosBinaries, selectEosBinaries, getNodeOptions, previewNodeSet, validateNodeGraph, type BackendPackage, type BuildReceipt, type DataTypeDefinition, type NodeGraph, type NodeGraphDiagnostic, type NodeInstance, type NodeSetDefinition, type NodeSetPreview, type NodeTypeDefinition, type ProcessStatus } from '@/services/isos/node-graph';
+import { type NodeOptions, type PrimitiveSpec, applyNodeGraph, backendSceneChoices, controlProcesses, getBackends, getNodeGraph, getNodeSets, getNodeTypes, getProcessStatus, getEosBuildStatus, buildEosBinaries, selectEosBinaries, getNodeOptions, previewNodeSet, validateNodeGraph, type BackendPackage, type BuildReceipt, type EosBuildStatus, type DataTypeDefinition, type NodeGraph, type NodeGraphDiagnostic, type NodeInstance, type NodeSetDefinition, type NodeSetPreview, type NodeTypeDefinition, type ProcessStatus } from '@/services/isos/node-graph';
 import type { Language } from '@/types';
 import { addNode, bindPrimitiveTarget, canonicalNodePath, connectNodes, disconnectInput, graphNodes, inputSources, nextNodeId, nodePath, removeNode, renameNode, sameNodePath, updateNode, type GraphNode } from './node-graph-edits';
 import { interfaceVisual, nodeSummary, nodeVisualStyle, portVisual, dataTypeColor } from './node-visuals';
@@ -13,6 +13,8 @@ import { IsosLogsPanel } from './IsosLogsPanel';
 import { edgeContracts } from './edge-idl';
 import { EgiaWorkbench } from './EgiaWorkbench';
 import { processRunFeedback } from './process-run-feedback';
+import { rebaseSelectedBuild } from './graph-run-state';
+import { browserLog } from '@/services/isos/browser-logs';
 import './node-graph-manager.scss';
 
 interface Props { lang: Language; visible?: boolean; onDirtyChange?: (dirty: boolean) => void }
@@ -162,6 +164,7 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
   const [sideCollapsed, setSideCollapsed] = useState(false);
   const [showOverview, setShowOverview] = useState(false);
   const [flowInstance, setFlowInstance] = useState<ReactFlowInstance | null>(null);
+  const lastCanvasSize = useRef('');
   const canvasRef = useRef<HTMLDivElement>(null);
   const quickSearchRef = useRef<HTMLInputElement>(null);
   const overviewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -173,6 +176,14 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
   const [buildReceipt, setBuildReceipt] = useState<BuildReceipt | null>(null);
   const [nodeOptions, setNodeOptions] = useState<NodeOptions | null>(null);
   const [busy, setBusy] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [buildStatus, setBuildStatus] = useState<EosBuildStatus | null>(null);
+  const [viewLost, setViewLost] = useState(false);
+  const initialFitDone = useRef(false);
+  const layoutKeyRef = useRef('');
+  const editGeneration = useRef(0);
+  const activeGesture = useRef(false);
+  const selectingBuild = useRef(false);
   const [positions, setPositions] = useState<NodePositions>({});
   const [mirrors, setMirrors] = useState<NodeMirrors>({});
   const [viewOpen, setViewOpen] = useState(false);
@@ -182,6 +193,61 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
   useEffect(() => { if (!graph) return; const timer = window.setTimeout(() => { void getNodeOptions(graph).then(setNodeOptions).catch(() => setNodeOptions(null)); }, 250); return () => window.clearTimeout(timer); }, [graph]);
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
   const entries = useMemo(() => graph ? graphNodes(graph, types) : [], [graph, types]);
+  useEffect(() => { if (graph) browserLog('debug', `Graph revision ${revision.slice(0, 8) || 'unsaved'}: ${entries.length} nodes; visible=${visible}`); }, [graph, revision, visible]);
+  useEffect(() => {
+    if (!visible || !flowInstance || !entries.length) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const observer = new ResizeObserver(() => {
+      const size = `${canvas.clientWidth}x${canvas.clientHeight}`;
+      if (size === lastCanvasSize.current) return;
+      lastCanvasSize.current = size;
+      browserLog(canvas.clientWidth && canvas.clientHeight ? 'debug' : 'warn', `Graph canvas ${size}; viewport ${JSON.stringify(flowInstance.getViewport())}`);
+    });
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [visible, flowInstance, entries.length]);
+  useEffect(() => {
+    if (!visible || !flowInstance || !entries.length || initialFitDone.current) return;
+    let frame = 0;
+    let cancelled = false;
+    let attempts = 0;
+    const fitWhenReady = (): void => {
+      if (cancelled || initialFitDone.current) return;
+      if (activeGesture.current) { initialFitDone.current = true; return; }
+      const canvas = canvasRef.current;
+      const measured = flowInstance.getNodes().some((node) => Boolean(node.width && node.height));
+      if (!canvas?.clientWidth || !canvas.clientHeight || !measured) {
+        if (++attempts < 120) frame = requestAnimationFrame(fitWhenReady);
+        else browserLog('warn', 'Graph initial fit skipped because the canvas or nodes were not measured');
+        return;
+      }
+      initialFitDone.current = true;
+      void flowInstance.fitView({ padding: 0.15 });
+    };
+    frame = requestAnimationFrame(fitWhenReady);
+    return () => { cancelled = true; cancelAnimationFrame(frame); };
+  }, [visible, flowInstance, entries.length]);
+  useEffect(() => {
+    if (!visible || !flowInstance || !entries.length) return;
+    const timer = window.setTimeout(() => {
+      const canvas = canvasRef.current;
+      if (!canvas || !canvas.clientWidth || !canvas.clientHeight) return;
+      const bounds = canvas.getBoundingClientRect();
+      const cards = canvas.querySelectorAll('.react-flow__node');
+      const onScreen = Array.from(cards).some((card) => {
+        const rect = card.getBoundingClientRect();
+        return rect.right > bounds.left && rect.left < bounds.right && rect.bottom > bounds.top && rect.top < bounds.bottom;
+      });
+      if (cards.length && !onScreen) {
+        browserLog('warn', `Graph nodes outside canvas; ${entries.length} graph nodes, ${cards.length} rendered nodes, viewport ${JSON.stringify(flowInstance.getViewport())}`);
+        setViewLost(true);
+      } else if (onScreen) {
+        setViewLost(false);
+      }
+    }, 100);
+    return () => window.clearTimeout(timer);
+  }, [graph, visible, flowInstance, entries.length]);
   const visibleTypes = useMemo(() => types.filter((type) => `${type.id} ${type.core} ${type.layer} ${type.group} ${type.kind}`.toLowerCase().includes(search.toLowerCase())), [types, search]);
   const quickTypes = useMemo(() => types.filter((type) => `${type.id} ${type.core} ${type.layer} ${type.group} ${type.kind}`.toLowerCase().includes(quickSearch.toLowerCase())), [types, quickSearch]);
   const selectedSet = nodeSets.find((set) => `${set.package.id}@${set.package.version}/${set.id}` === setKey);
@@ -196,31 +262,37 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
   const chosen = selected.length === 1 ? entries.find((entry) => entry.path === selected[0]) : undefined;
   const refresh = useCallback(async (confirm = false): Promise<void> => {
     if (confirm && dirty && !window.confirm(copy.discard)) return;
+    const generation = editGeneration.current;
     setBusy(true);
-    try { const [document, catalog, sets, status] = await Promise.all([getNodeGraph(), getNodeTypes(), getNodeSets().catch(() => ({ sets: [] })), getProcessStatus().catch(() => null)]); setGraph(document.graph); setPositions(parseNodePositions(localStorage.getItem(graphLayoutKey(document.graph)))); setMirrors(parseNodeMirrors(localStorage.getItem(graphMirrorKey(document.graph)))); setSaved(JSON.stringify(document.graph)); setRevision(document.revision); setTypes(catalog.types); setDataTypes(catalog.data_types || []); setPrimitiveSpecs(catalog.primitive_specs || []); setNodeSets(sets.sets); setSetKey(''); setSetValues({}); setReplaceLegacyMujoco(false); setSetPreview(null); setProcessStatus(status); setTypeId(catalog.types[0]?.id || ''); setSelected([]); setDiagnostics([]); setUndoStack([]); setRedoStack([]); setMessage(''); }
+    try { const [document, catalog, sets, status, eosBuild] = await Promise.all([getNodeGraph(), getNodeTypes(), getNodeSets().catch(() => ({ sets: [] })), getProcessStatus().catch(() => null), getEosBuildStatus().catch(() => null)]); if (generation !== editGeneration.current) { setMessage(lang === 'cn' ? '刷新期间节点图已更改，保留未保存的修改。' : 'Graph changed during refresh; unsaved edits were preserved.'); return; } const layoutKey = graphLayoutKey(document.graph); if (layoutKeyRef.current !== layoutKey) { setPositions(parseNodePositions(localStorage.getItem(layoutKey))); setMirrors(parseNodeMirrors(localStorage.getItem(graphMirrorKey(document.graph)))); layoutKeyRef.current = layoutKey; } setGraph(document.graph); setSaved(JSON.stringify(document.graph)); setRevision(document.revision); setTypes(catalog.types); setDataTypes(catalog.data_types || []); setPrimitiveSpecs(catalog.primitive_specs || []); setNodeSets(sets.sets); setSetKey(''); setSetValues({}); setReplaceLegacyMujoco(false); setSetPreview(null); setProcessStatus(status); setBuildStatus(eosBuild); setTypeId(catalog.types[0]?.id || ''); setSelected((current) => current.filter((path) => graphNodes(document.graph, []).some((entry) => entry.path === path))); setDiagnostics([]); setUndoStack([]); setRedoStack([]); setMessage(''); }
     catch (error) { setMessage(error instanceof Error ? error.message : copy.disconnected); }
     finally { setBusy(false); }
-  }, [dirty, copy.discard, copy.disconnected]);
+  }, [dirty, copy.discard, copy.disconnected, lang]);
   useEffect(() => { void refresh(); }, []);
-  useEffect(() => { if (!visible) return; const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void getProcessStatus().then(setProcessStatus).catch(() => undefined); }, 3000); return () => window.clearInterval(timer); }, [visible]);
+  useEffect(() => {
+    if (!visible) return;
+    const statusTimer = window.setInterval(() => { if (document.visibilityState === 'visible') void getProcessStatus().then(setProcessStatus).catch(() => undefined); }, 3000);
+    const buildTimer = window.setInterval(() => { if (document.visibilityState === 'visible') void getEosBuildStatus().then(setBuildStatus).catch(() => undefined); }, 30000);
+    return () => { window.clearInterval(statusTimer); window.clearInterval(buildTimer); };
+  }, [visible]);
   useEffect(() => {
     const reloadCatalog = (): void => { void Promise.all([getNodeTypes(), getNodeSets()]).then(([catalog, sets]) => { setTypes(catalog.types); setDataTypes(catalog.data_types || []); setPrimitiveSpecs(catalog.primitive_specs || []); setNodeSets(sets.sets); setSetKey(''); setSetValues({}); setSetPreview(null); }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : String(error))); };
     window.addEventListener('isosui:packages-changed', reloadCatalog);
     return () => window.removeEventListener('isosui:packages-changed', reloadCatalog);
   }, []);
-  useEffect(() => { if (graph) localStorage.setItem(graphLayoutKey(graph), JSON.stringify(positions)); }, [graph?.robot.id, positions]);
+  useEffect(() => { if (!graph) return; const key = graphLayoutKey(graph); const timer = window.setTimeout(() => localStorage.setItem(key, JSON.stringify(positions)), 250); return () => window.clearTimeout(timer); }, [graph?.robot.id, positions]);
   useEffect(() => { if (graph) localStorage.setItem(graphMirrorKey(graph), JSON.stringify(mirrors)); }, [graph?.robot.id, mirrors]);
   useEffect(() => { for (const id of ['eos', 'egia'] as const) localStorage.setItem(`isosui-graph-${id}-window`, JSON.stringify(coreWindows[id])); }, [coreWindows]);
   const updateCoreWindow = (id: 'eos' | 'egia', patch: Partial<CoreWindowState>): void => setCoreWindows((current) => ({ ...current, [id]: { ...current[id], ...patch } }));
   useEffect(() => { const beforeUnload = (event: BeforeUnloadEvent): void => { if (dirty) event.preventDefault(); }; window.addEventListener('beforeunload', beforeUnload); return () => window.removeEventListener('beforeunload', beforeUnload); }, [dirty]);
   const edit = (change: (current: NodeGraph) => NodeGraph): void => {
-    if (!graph) return;
+    if (!graph || selectingBuild.current) return;
     const next = change(graph);
     if (next === graph || JSON.stringify(next) === JSON.stringify(graph)) return;
-    setUndoStack((stack) => [...stack.slice(-49), graph]); setRedoStack([]); setGraph(next); setSetPreview(null); setDiagnostics([]);
+    editGeneration.current += 1; setUndoStack((stack) => [...stack.slice(-49), graph]); setRedoStack([]); setGraph(next); setSetPreview(null); setDiagnostics([]);
   };
-  const undo = (): void => { if (!graph || !undoStack.length) return; setRedoStack((stack) => [...stack, graph]); setGraph(undoStack[undoStack.length - 1]); setSetPreview(null); setUndoStack(undoStack.slice(0, -1)); };
-  const redo = (): void => { if (!graph || !redoStack.length) return; setUndoStack((stack) => [...stack, graph]); setGraph(redoStack[redoStack.length - 1]); setSetPreview(null); setRedoStack(redoStack.slice(0, -1)); };
+  const undo = (): void => { if (!graph || !undoStack.length || selectingBuild.current) return; editGeneration.current += 1; setRedoStack((stack) => [...stack, graph]); setGraph(undoStack[undoStack.length - 1]); setSetPreview(null); setUndoStack(undoStack.slice(0, -1)); };
+  const redo = (): void => { if (!graph || !redoStack.length || selectingBuild.current) return; editGeneration.current += 1; setUndoStack((stack) => [...stack, graph]); setGraph(redoStack[redoStack.length - 1]); setSetPreview(null); setRedoStack(redoStack.slice(0, -1)); };
   const previewPackageSet = async (): Promise<void> => {
     if (!graph || !selectedSet) return;
     setBusy(true);
@@ -275,9 +347,22 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
     else if (event.key.toLowerCase() === 'r' && !event.ctrlKey && !event.metaKey && !quickAdd && !edgeMenu && selected.length) { event.preventDefault(); setMirrors((current) => { const next = { ...current }; for (const path of selected) next[path] = !next[path]; return next; }); }
   }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey); }, [graph, undoStack, redoStack, selected, quickAdd, edgeMenu, visible]);
   const validate = async (): Promise<boolean> => { if (!graph) return false; setBusy(true); try { const result = await validateNodeGraph(graph); setDiagnostics(result.diagnostics); setMessage(result.valid ? copy.valid : `${result.diagnostics.length} ${copy.diagnostics.toLowerCase()}`); return result.valid; } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); return false; } finally { setBusy(false); } };
-  const apply = async (): Promise<void> => { if (!graph) return; setBusy(true); try { const checked = await validateNodeGraph(graph); setDiagnostics(checked.diagnostics); if (!checked.valid) { setMessage(`${checked.diagnostics.length} ${copy.diagnostics.toLowerCase()}`); return; } const document = await applyNodeGraph(revision, graph); setGraph(document.graph); setSaved(JSON.stringify(document.graph)); setRevision(document.revision); setMessage(copy.saved); } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); } finally { setBusy(false); } };
+  const saveSnapshot = async (snapshot: NodeGraph, expectedRevision: string): Promise<string | null> => {
+    const generation = editGeneration.current;
+    const checked = await validateNodeGraph(snapshot);
+    setDiagnostics(checked.diagnostics);
+    if (!checked.valid) { setMessage(checked.diagnostics.map((item) => item.message).join('; ') || copy.invalid); setSideCollapsed(false); setDiagnosticsOpen(true); return null; }
+    const document = await applyNodeGraph(expectedRevision, snapshot);
+    const newerDraft = editGeneration.current !== generation;
+    setSaved(JSON.stringify(document.graph));
+    setRevision(document.revision);
+    if (!newerDraft) setGraph(document.graph);
+    setMessage(newerDraft ? (lang === 'cn' ? '已保存先前版本，新的修改仍未保存。' : 'Earlier draft saved; newer edits remain unsaved.') : copy.saved);
+    return newerDraft ? null : document.revision;
+  };
+  const apply = async (): Promise<void> => { if (!graph || busy) return; setBusy(true); try { await saveSnapshot(graph, revision); } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); } finally { setBusy(false); } };
   const buildBinaries = async (): Promise<void> => {
-    if (!graph || dirty) return;
+    if (!graph) return;
     setBusy(true);
     setBuildReceipt(null);
     try {
@@ -288,11 +373,16 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
     finally { setBusy(false); }
   };
   const selectBinaries = async (): Promise<void> => {
-    if (!graph || dirty || !revision || !buildReceipt) return;
+    if (!graph || !revision || !buildReceipt || selectingBuild.current) return;
+    const baseline = saved ? JSON.parse(saved) as NodeGraph : graph;
+    if (!rebaseSelectedBuild(baseline, graph, graph)) { setMessage(lang === 'cn' ? '草稿已修改 EOS 进程命令，请先撤销这些命令修改再选择构建。' : 'Draft EOS process commands changed. Revert those command edits before selecting a build.'); return; }
+    selectingBuild.current = true;
     setBusy(true);
     try {
-      const result = await selectEosBinaries(buildReceipt.source_commit, revision);
-      setGraph(result.graph.graph);
+      const result = await selectEosBinaries(buildReceipt.source_fingerprint || buildReceipt.source_commit, revision);
+      const rebased = rebaseSelectedBuild(baseline, graph, result.graph.graph);
+      if (!rebased) throw new Error('EOS command conflict after selecting build. Refresh only after preserving the draft.');
+      setGraph(rebased);
       setSaved(JSON.stringify(result.graph.graph));
       setRevision(result.graph.revision);
       setUndoStack([]);
@@ -300,13 +390,46 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
       setSetPreview(null);
       setDiagnostics([]);
       setBuildReceipt(null);
+      setBuildStatus({ selected: result.receipt, source_current: true, stale_reason: null });
       setMessage(lang === 'cn' ? '已选择 EOS 版本。重启运行中的部署后生效。' : 'EOS version selected. Restart the running deployment to activate it.');
+    } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
+    finally { selectingBuild.current = false; setBusy(false); }
+  };
+  const running = processStatus?.state === 'running' || processStatus?.state === 'degraded';
+  const primaryLabel = lang === 'cn' ? (dirty ? (running ? '保存并重启' : '保存并运行') : (running ? '重启' : '运行')) : (dirty ? (running ? 'Save & Restart' : 'Save & Run') : (running ? 'Restart' : 'Run'));
+  const runPrimary = async (): Promise<void> => {
+    if (!graph || busy) return;
+    if (buildStatus && !buildStatus.source_current) {
+      setAdvancedOpen(true);
+      setMessage(buildStatus.stale_reason || (lang === 'cn' ? '请先在高级操作中构建并选择 EOS。' : 'Build and select EOS in Advanced first.'));
+      return;
+    }
+    setBusy(true);
+    const generation = editGeneration.current;
+    try {
+      let nextRevision = revision;
+      if (dirty) {
+        const savedRevision = await saveSnapshot(graph, revision);
+        if (!savedRevision) return;
+        nextRevision = savedRevision;
+      } else {
+        const checked = await validateNodeGraph(graph);
+        setDiagnostics(checked.diagnostics);
+        if (!checked.valid) { setMessage(checked.diagnostics.map((item) => item.message).join('; ') || copy.invalid); setSideCollapsed(false); setDiagnosticsOpen(true); return; }
+      }
+      if (generation !== editGeneration.current) { setMessage(lang === 'cn' ? '运行前节点图已更改，请再次保存并运行。' : 'Graph changed before run. Save and run again.'); return; }
+      const latestStatus = await getProcessStatus();
+      if (generation !== editGeneration.current) { setMessage(lang === 'cn' ? '运行前节点图已更改，请再次保存并运行。' : 'Graph changed before run. Save and run again.'); return; }
+      const operation = latestStatus.state === 'running' || latestStatus.state === 'degraded' ? 'restart' : 'run';
+      const status = await controlProcesses(operation, nextRevision);
+      setProcessStatus(status);
+      setMessage(processRunFeedback(status, operation, lang));
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
     finally { setBusy(false); }
   };
-  const run = async (operation: 'run' | 'restart'): Promise<void> => { if (dirty || !revision) return; setBusy(true); try { const status = await controlProcesses(operation, revision); setProcessStatus(status); setMessage(processRunFeedback(status, operation, lang)); } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); } finally { setBusy(false); } };
+  const stop = async (): Promise<void> => { if (busy) return; setBusy(true); try { const status = await controlProcesses('stop'); setProcessStatus(status); setMessage(lang === 'cn' ? '已停止当前节点图。' : 'Current graph stopped.'); } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); } finally { setBusy(false); } };
   const nodes = useMemo<Node<FlowData>[]>(() => entries.map((entry, index) => ({ id: entry.path, type: 'profile', position: positions[entry.path] || { x: 50 + (index % 3) * 330, y: 50 + Math.floor(index / 3) * 220 }, data: { entry, error: diagnostics.some((item) => item.path.includes(entry.path)), mirrored: !!mirrors[entry.path] }, selected: selected.includes(entry.path) })), [entries, positions, selected, diagnostics, mirrors]);
-  const edges = useMemo<Edge[]>(() => entries.flatMap((entry) => Object.entries(entry.node.inputs || {}).flatMap(([input, sources]) => inputSources(sources).map((source) => { const port = entries.find((candidate) => sameNodePath(candidate.path, source.node))?.definition?.outputs.find((item) => item.name === source.output); const visual = interfaceVisual(port); return { id: `${entry.path}:${input}:${canonicalNodePath(source.node)}:${source.output}`, source: canonicalNodePath(source.node), sourceHandle: `out:${source.output}`, target: entry.path, targetHandle: `in:${input}`, label: `${port?.data_type || source.output} · ${visual.label}`, className: visual.className, style: visual.style as React.CSSProperties, animated: false }; }))), [entries]);
+  const edges = useMemo<Edge[]>(() => entries.flatMap((entry) => Object.entries(entry.node.inputs || {}).flatMap(([input, sources]) => inputSources(sources).map((source) => { const port = entries.find((candidate) => sameNodePath(candidate.path, source.node))?.definition?.outputs.find((item) => item.name === source.output); const visual = interfaceVisual(port); const id = `${entry.path}:${input}:${canonicalNodePath(source.node)}:${source.output}`; const label = `${port?.data_type || source.output} · ${visual.label}`; return { id, source: canonicalNodePath(source.node), sourceHandle: `out:${source.output}`, target: entry.path, targetHandle: `in:${input}`, label, ariaLabel: label, interactionWidth: 24, focusable: true, selected: selectedEdge === id, className: visual.className, style: visual.style as React.CSSProperties, animated: false }; }))), [entries, selectedEdge]);
   const edgeDetail = selectedEdge ? edges.find((edge) => edge.id === selectedEdge) : undefined;
   const onNodesChange = (changes: NodeChange[]): void => {
     if (changes.some((change) => change.type === 'select')) setSelected((current) => applyNodeSelection(current, changes));
@@ -314,15 +437,31 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
     const moved = changes.filter((change): change is Extract<NodeChange, { type: 'position' }> => change.type === 'position' && Boolean(change.position));
     if (!moved.length) return current;
     const next = { ...current };
-    for (const change of moved) if (change.position) next[change.id] = change.position;
-    return next;
+    let changed = false;
+    for (const change of moved) if (change.position && (current[change.id]?.x !== change.position.x || current[change.id]?.y !== change.position.y)) { next[change.id] = change.position; changed = true; }
+    return changed ? next : current;
     });
   };
   return <ReactFlowProvider><main className="node-graph-manager">
-    <header><h1>{copy.title}</h1><div role="toolbar" aria-label={copy.title}><button className="node-graph-icon-button" type="button" onClick={undo} disabled={!undoStack.length} title={`${copy.undo} (Ctrl+Z)`} aria-label={copy.undo}><span className="node-graph-history-arrow" aria-hidden="true" /></button><button className="node-graph-icon-button" type="button" onClick={redo} disabled={!redoStack.length} title={`${copy.redo} (Ctrl+Shift+Z)`} aria-label={copy.redo}><span className="node-graph-history-arrow node-graph-history-arrow--redo" aria-hidden="true" /></button><div className="node-graph-view"><button type="button" aria-expanded={viewOpen} onClick={() => setViewOpen((value) => !value)}>{lang === 'cn' ? '视图' : 'View'} ▾</button>{viewOpen && <div className="node-graph-view__menu" role="menu"><button type="button" role="menuitemcheckbox" aria-checked={!libraryCollapsed} onClick={() => setLibraryCollapsed((value) => !value)}>{copy.catalog}</button><button type="button" role="menuitemcheckbox" aria-checked={!sideCollapsed} onClick={() => setSideCollapsed((value) => !value)}>{copy.inspector}</button><button type="button" role="menuitemcheckbox" aria-checked={diagnosticsOpen && !sideCollapsed} onClick={() => { if (diagnosticsOpen && !sideCollapsed) setDiagnosticsOpen(false); else { setSideCollapsed(false); setDiagnosticsOpen(true); } }}>{copy.diagnostics}</button><button type="button" role="menuitemcheckbox" aria-checked={logsOpen} onClick={() => setLogsOpen((value) => !value)}>{lang === 'cn' ? '日志' : 'Logs'}</button>{(['eos', 'egia'] as const).map((id) => <button type="button" role="menuitemcheckbox" aria-checked={coreWindows[id].open} key={id} onClick={() => updateCoreWindow(id, { open: !coreWindows[id].open })}>{id.toUpperCase()}</button>)}</div>}</div><button type="button" onClick={() => void refresh(true)} disabled={busy}>{copy.refresh}</button><button type="button" onClick={() => void validate()} disabled={busy || !graph}>{copy.validate}</button><button type="button" onClick={() => void buildBinaries()} disabled={busy || !graph || dirty}>{lang === 'cn' ? '构建 EOS 程序' : 'Build EOS binaries'}</button><button type="button" onClick={() => void selectBinaries()} disabled={busy || !graph || dirty || !buildReceipt}>{lang === 'cn' ? '选择 EOS 版本' : 'Select EOS version'}</button><button type="button" onClick={() => void apply()} disabled={busy || !graph}>{lang === 'cn' ? '构建节点图' : 'Build graph'}</button><button type="button" onClick={() => void run('run')} disabled={busy || dirty || !graph || processStatus?.state === 'running'}>{lang === 'cn' ? '运行' : 'Run'}</button>{processStatus?.state === 'running' && processStatus.active_revision !== revision && <button type="button" onClick={() => void run('restart')} disabled={busy || dirty}>{lang === 'cn' ? '使用当前节点图重启' : 'Restart with applied graph'}</button>}<span role="status">{dirty ? copy.dirty : copy.clean} · {copy.savedRevision}: {revision.slice(0, 8) || '—'} · {copy.activeRevision}: {processStatus?.active_revision?.slice(0, 8) || '—'}</span></div></header>
-    {message && <p className="node-graph-message" role="status">{message}</p>}{buildReceipt && <p role="status">{lang === 'cn' ? '待选择的构建' : 'Staged build'}: {buildReceipt.component} {buildReceipt.product_version} · {buildReceipt.source_commit.slice(0, 8)}</p>}{processStatus?.last_error && <p className="node-graph-error" role="alert">{processStatus.last_error}</p>}
+    <header><h1>{copy.title}</h1><div role="toolbar" aria-label={copy.title}>
+      <button className="node-graph-icon-button" type="button" onClick={undo} disabled={!undoStack.length || busy} title={`${copy.undo} (Ctrl+Z)`} aria-label={copy.undo}><span className="node-graph-history-arrow" aria-hidden="true" /></button>
+      <button className="node-graph-icon-button" type="button" onClick={redo} disabled={!redoStack.length || busy} title={`${copy.redo} (Ctrl+Shift+Z)`} aria-label={copy.redo}><span className="node-graph-history-arrow node-graph-history-arrow--redo" aria-hidden="true" /></button>
+      <div className="node-graph-view"><button type="button" aria-expanded={viewOpen} onClick={() => setViewOpen((value) => !value)}>{lang === 'cn' ? '视图' : 'View'} ▾</button>{viewOpen && <div className="node-graph-view__menu" role="menu"><button type="button" role="menuitemcheckbox" aria-checked={!libraryCollapsed} onClick={() => setLibraryCollapsed((value) => !value)}>{copy.catalog}</button><button type="button" role="menuitemcheckbox" aria-checked={!sideCollapsed} onClick={() => setSideCollapsed((value) => !value)}>{copy.inspector}</button><button type="button" role="menuitemcheckbox" aria-checked={diagnosticsOpen && !sideCollapsed} onClick={() => { if (diagnosticsOpen && !sideCollapsed) setDiagnosticsOpen(false); else { setSideCollapsed(false); setDiagnosticsOpen(true); } }}>{copy.diagnostics}</button><button type="button" role="menuitemcheckbox" aria-checked={logsOpen} onClick={() => setLogsOpen((value) => !value)}>{lang === 'cn' ? '日志' : 'Logs'}</button>{(['eos', 'egia'] as const).map((id) => <button type="button" role="menuitemcheckbox" aria-checked={coreWindows[id].open} key={id} onClick={() => updateCoreWindow(id, { open: !coreWindows[id].open })}>{id.toUpperCase()}</button>)}</div>}</div>
+      <button type="button" onClick={() => { browserLog('info', `Fit graph requested; ${entries.length} nodes; viewport ${JSON.stringify(flowInstance?.getViewport())}`); setViewLost(false); void flowInstance?.fitView({ padding: 0.15, duration: 200 }); }}>{lang === 'cn' ? '显示全图' : 'Fit graph'}</button>
+      <button type="button" className="node-graph-primary-action" onClick={() => void runPrimary()} disabled={busy || !graph}>{primaryLabel}</button>
+      {running && <button type="button" onClick={() => void stop()} disabled={busy}>{lang === 'cn' ? '停止' : 'Stop'}</button>}
+      <details className="node-graph-advanced" open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}><summary>{lang === 'cn' ? '高级操作' : 'Advanced'} ▾</summary><div>
+        <button type="button" onClick={() => void validate()} disabled={busy || !graph}>{copy.validate}</button><small>{lang === 'cn' ? '检查草稿，不保存' : 'Check draft without saving'}</small>
+        <button type="button" onClick={() => void apply()} disabled={busy || !graph || !dirty}>{lang === 'cn' ? '保存节点图' : 'Apply graph'}</button><small>{lang === 'cn' ? '验证并保存草稿' : 'Validate and save draft'}</small>
+        <button type="button" onClick={() => void buildBinaries()} disabled={busy || !graph}>{lang === 'cn' ? '构建 EOS 程序' : 'Build EOS binaries'}</button><small>{lang === 'cn' ? '仅暂存构建，不启用' : 'Stage build without selecting'}</small>
+        <button type="button" onClick={() => void selectBinaries()} disabled={busy || !graph || !buildReceipt}>{lang === 'cn' ? '选择 EOS 版本' : 'Select EOS build'}</button><small>{lang === 'cn' ? '启用已暂存构建' : 'Activate staged build'}</small>
+        <button type="button" onClick={() => void refresh(true)} disabled={busy}>{copy.refresh}</button><small>{lang === 'cn' ? '从 IsOS 重新载入配置' : 'Reload configuration from IsOS'}</small>
+      </div></details>
+      <span role="status">{dirty ? copy.dirty : copy.clean} · {copy.savedRevision}: {revision.slice(0, 8) || '—'} · {copy.activeRevision}: {processStatus?.active_revision?.slice(0, 8) || '—'}</span>
+    </div></header>
+    {message && <p className="node-graph-message" role="status">{message}</p>}{buildReceipt && <p role="status">{lang === 'cn' ? '待选择的构建' : 'Staged build'}: {buildReceipt.component} {buildReceipt.product_version} · {buildReceipt.source_commit.slice(0, 8)}</p>}{buildStatus && !buildStatus.source_current && <p className="node-graph-recovery" role="status">{lang === 'cn' ? 'EOS 构建未就绪。打开高级操作以构建并选择版本。' : 'EOS build needs updating. Open Advanced to build and select a version.'}</p>}{viewLost && <p className="node-graph-recovery" role="status">{lang === 'cn' ? '节点可能在视野之外。使用“显示全图”恢复。' : 'Nodes may be outside the view. Use Fit graph to recover.'}</p>}{processStatus?.last_error && <p className="node-graph-error" role="alert">{processStatus.last_error}</p>}
     <div className={`node-graph-body${libraryCollapsed ? ' node-graph-body--library-collapsed' : ''}${sideCollapsed ? ' node-graph-body--side-collapsed' : ''}`}><aside className="node-graph-library" hidden={libraryCollapsed}><h2>{copy.catalog}</h2><label>{copy.search}<input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={copy.search} /></label><label>{copy.type}<select value={typeId} onChange={(event) => setTypeId(event.target.value)}>{visibleTypes.map((type) => <option key={type.id} value={type.id}>{type.core} / {type.layer} / {type.group} · {type.id}</option>)}</select></label><label>{copy.id}<input value={newId} placeholder={graph && types.find((type) => type.id === typeId) ? nextNodeId(graph, types.find((type) => type.id === typeId)!) : ''} onChange={(event) => setNewId(event.target.value.toLowerCase())} /></label><button type="button" onClick={() => add()} disabled={!graph || !typeId}>{copy.add}</button><p>{copy.port}</p><p>{copy.hint}</p><div className="node-graph-legend" aria-label={lang === 'cn' ? '端口颜色' : 'Port colors'}><h3>{lang === 'cn' ? '端口颜色：准确数据类型' : 'Port color: exact data type'}</h3>{(dataTypes.length ? dataTypes.slice(0, 5).map((item) => item.id) : ['camera_frame', 'vision_frame', 'base_observation']).map((id) => <span key={id} style={{ '--port': dataTypeColor(id) } as React.CSSProperties}><i aria-hidden="true" />{id}</span>)}</div><div className="node-graph-interface-legend" aria-label={lang === 'cn' ? '接口视觉规则' : 'Interface visual rules'}><strong>{lang === 'cn' ? '接口视觉规则' : 'Interface visual rules'}</strong><span>{lang === 'cn' ? '锚点形状：进程内圆形 / Unix 方形 / WebSocket 菱形 / ROS 2 六边形' : 'Anchor shape: in-process circle / Unix square / WebSocket diamond / ROS 2 hexagon'}</span><span>{lang === 'cn' ? '连线图案：<1 Hz 稀疏点；1–<10 Hz 点线；10–<30 Hz 长划线；≥30 Hz 实线；未知为虚线' : 'Line pattern: <1 Hz sparse dots; 1–<10 Hz dotted; 10–<30 Hz long dashes; ≥30 Hz solid; unknown dashed'}</span><span>{lang === 'cn' ? '连线颜色：中性灰（优先级语义待定义）' : 'Line color: neutral gray until priority semantics are defined'}</span></div><section className="node-graph-set-library"><h2>{copy.nodeSets}</h2>{nodeSets.length ? <><label>{copy.chooseSet}<select value={setKey} onChange={(event) => { const key = event.target.value; const chosenSet = nodeSets.find((set) => `${set.package.id}@${set.package.version}/${set.id}` === key); setSetKey(key); setReplaceLegacyMujoco(false); setSetValues(Object.fromEntries(Object.entries(chosenSet?.parameters || {}).map(([name, parameter]) => [name, parameter.default || '']))); setSetPreview(null); }}><option value="">—</option>{nodeSets.map((set) => { const key = `${set.package.id}@${set.package.version}/${set.id}`; return <option key={key} value={key}>{set.package.id}@{set.package.version} / {set.id}</option>; })}</select></label>{selectedSet && <><p>{selectedSet.nodes.length} {copy.previewCount}</p>{Object.entries(selectedSet.parameters).map(([name, parameter]) => <label key={name}>{name}<input type="text" value={setValues[name] ?? parameter.default ?? ''} onChange={(event) => { setSetValues((current) => ({ ...current, [name]: event.target.value })); setSetPreview(null); }} /></label>)}{selectedSet.package.id === 'island/mujoco-sim' && <label className="node-graph-set-replace"><input type="checkbox" checked={replaceLegacyMujoco} onChange={(event) => { setReplaceLegacyMujoco(event.target.checked); setSetPreview(null); }} />{copy.replaceLegacy}</label>}<button type="button" disabled={!graph || busy} onClick={() => void previewPackageSet()}>{copy.previewSet}</button>{setPreview && <div className="node-graph-set-preview" role="status"><strong>{setPreview.result.added_paths.length} {copy.previewCount}</strong><ul>{setPreview.result.added_paths.map((path) => <li key={path}><code>{path}</code></li>)}</ul>{setPreview.removedPaths.length > 0 && <><strong>{setPreview.removedPaths.length} {copy.removedCount}</strong><ul>{setPreview.removedPaths.map((path) => <li key={path}><code>{path}</code></li>)}</ul></>}<button type="button" onClick={addPreviewedSet} disabled={busy || setPreview.source !== JSON.stringify(graph)}>{copy.addSet}</button></div>}</>}</> : <p>{copy.noNodeSets}</p>}</section>{graph && <><h2>{copy.robot}</h2><label>{copy.id}<input value={graph.robot.id} onChange={(event) => edit((current) => ({ ...current, robot: { ...current.robot, id: event.target.value } }))} /></label><label>{copy.name}<input value={graph.robot.name} onChange={(event) => edit((current) => ({ ...current, robot: { ...current.robot, name: event.target.value } }))} /></label></>}</aside>
-      <div className="node-graph-canvas" ref={canvasRef} onContextMenu={openQuickAdd} onMouseMove={revealOverview} onTouchMove={revealOverview}>{graph ? <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onInit={setFlowInstance} onEdgeContextMenu={openEdgeMenu} onEdgeClick={(_, edge) => { setSelectedEdge(edge.id); setSideCollapsed(false); setQuickAdd(null); }} onMove={revealOverview} onNodesChange={onNodesChange} onConnect={connect} onNodeClick={() => { setQuickAdd(null); setSelectedEdge(''); }} selectionOnDrag selectionMode={SelectionMode.Partial} panOnDrag={[1]} deleteKeyCode={null} onPaneClick={() => { setSelected([]); setQuickAdd(null); setEdgeMenu(null); setSelectedEdge(''); }} onDoubleClick={(event) => { if ((event.target as HTMLElement).classList.contains('react-flow__pane')) add(true); }} fitView minZoom={0.2} maxZoom={2}><Background color="var(--border)" /><MiniMap className={showOverview ? 'node-graph-minimap--visible' : 'node-graph-minimap--hidden'} pannable zoomable /></ReactFlow> : <div className="node-graph-empty"><p>{copy.disconnected}</p><button type="button" onClick={() => void refresh()}>{copy.connect}</button></div>}{graph && !entries.length && <p className="node-graph-empty">{copy.noNodes}</p>}{edgeMenu && <div className="node-graph-edge-menu" role="menu" style={{ left: edgeMenu.left, top: edgeMenu.top }}><button type="button" role="menuitem" onClick={() => { const edge = edges.find((item) => item.id === edgeMenu.id); if (edge) edit((current) => disconnectInput(current, edge.target, String(edge.targetHandle).replace(/^in:/, ''), edge.source, String(edge.sourceHandle).replace(/^out:/, ''))); setEdgeMenu(null); }}>{copy.disconnect}</button></div>}{quickAdd && <div className="node-graph-quick-add" role="dialog" aria-label={copy.add} style={{ left: quickAdd.left, top: quickAdd.top }} onContextMenu={(event) => event.stopPropagation()}><input ref={quickSearchRef} type="search" aria-label={copy.search} placeholder={copy.search} value={quickSearch} onChange={(event) => setQuickSearch(event.target.value)} /><div className="node-graph-quick-add__list">{quickTypes.map((type) => <button type="button" key={type.id} onMouseEnter={() => setQuickDetail(type.id)} onFocus={() => setQuickDetail(type.id)} onClick={() => addAtCursor(type)}><strong>{type.group}</strong><small>{type.core} / {type.layer} · {type.id}</small></button>)}</div>{quickDetail && <div className="node-graph-quick-add__detail" role="note">{(() => { const type = quickTypes.find((item) => item.id === quickDetail); return type ? <><strong>{type.id}</strong><p>{type.core} / {type.layer} / {type.group} · {type.lifecycle}</p><p>{type.capabilities.join(', ') || '—'}</p><small>{type.inputs.length} {lang === 'cn' ? '输入' : 'inputs'} · {type.outputs.length} {lang === 'cn' ? '输出' : 'outputs'} · {type.settings.length} {lang === 'cn' ? '设置' : 'settings'}</small></> : null; })()}</div>}</div>}
+      <div className="node-graph-canvas" ref={canvasRef} onContextMenu={openQuickAdd} onPointerDownCapture={(event) => { if (event.button === 0 && !(event.target as HTMLElement).closest('.node-graph-edge-menu, .node-graph-quick-add')) { setQuickAdd(null); setEdgeMenu(null); } activeGesture.current = true; }} onPointerUpCapture={() => { activeGesture.current = false; }} onPointerCancelCapture={() => { activeGesture.current = false; }} onMouseMove={revealOverview} onTouchMove={revealOverview}>{graph ? <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onInit={(instance) => { setFlowInstance(instance); browserLog('debug', 'Graph canvas initialized'); }} onEdgeContextMenu={openEdgeMenu} onEdgeClick={(_, edge) => { setSelectedEdge(edge.id); setSideCollapsed(false); setQuickAdd(null); }} onMove={revealOverview} onNodesChange={onNodesChange} onConnect={connect} onNodeClick={() => { setQuickAdd(null); setSelectedEdge(''); }} onSelectionStart={() => { activeGesture.current = true; }} onSelectionEnd={() => { activeGesture.current = false; }} selectionOnDrag selectionMode={SelectionMode.Partial} panOnDrag={[1]} deleteKeyCode={null} onPaneClick={() => { setSelected([]); setQuickAdd(null); setEdgeMenu(null); setSelectedEdge(''); }} onDoubleClick={(event) => { if ((event.target as HTMLElement).classList.contains('react-flow__pane')) add(true); }} minZoom={0.2} maxZoom={2}><Background color="var(--border)" /><MiniMap className={showOverview ? 'node-graph-minimap--visible' : 'node-graph-minimap--hidden'} pannable zoomable /></ReactFlow> : <div className="node-graph-empty"><p>{copy.disconnected}</p><button type="button" onClick={() => void refresh()}>{copy.connect}</button></div>}{graph && !entries.length && <p className="node-graph-empty">{copy.noNodes}</p>}{edgeMenu && <div className="node-graph-edge-menu" role="menu" style={{ left: edgeMenu.left, top: edgeMenu.top }}><button type="button" role="menuitem" onClick={() => { const edge = edges.find((item) => item.id === edgeMenu.id); if (edge) edit((current) => disconnectInput(current, edge.target, String(edge.targetHandle).replace(/^in:/, ''), edge.source, String(edge.sourceHandle).replace(/^out:/, ''))); setEdgeMenu(null); }}>{copy.disconnect}</button></div>}{quickAdd && <div className="node-graph-quick-add" role="dialog" aria-label={copy.add} style={{ left: quickAdd.left, top: quickAdd.top }} onContextMenu={(event) => event.stopPropagation()}><input ref={quickSearchRef} type="search" aria-label={copy.search} placeholder={copy.search} value={quickSearch} onChange={(event) => setQuickSearch(event.target.value)} /><div className="node-graph-quick-add__list">{quickTypes.map((type) => <button type="button" key={type.id} onMouseEnter={() => setQuickDetail(type.id)} onFocus={() => setQuickDetail(type.id)} onClick={() => addAtCursor(type)}><strong>{type.group}</strong><small>{type.core} / {type.layer} · {type.id}</small></button>)}</div>{quickDetail && <div className="node-graph-quick-add__detail" role="note">{(() => { const type = quickTypes.find((item) => item.id === quickDetail); return type ? <><strong>{type.id}</strong><p>{type.core} / {type.layer} / {type.group} · {type.lifecycle}</p><p>{type.capabilities.join(', ') || '—'}</p><small>{type.inputs.length} {lang === 'cn' ? '输入' : 'inputs'} · {type.outputs.length} {lang === 'cn' ? '输出' : 'outputs'} · {type.settings.length} {lang === 'cn' ? '设置' : 'settings'}</small></> : null; })()}</div>}</div>}
         {visible && <><GraphCoreWindow title="EOS" state={coreWindows.eos} onChange={(patch) => updateCoreWindow('eos', patch)} lang={lang}><EosWorkbench lang={lang} graphDirty={dirty} onOpenGraph={() => updateCoreWindow('eos', { open: false })} /></GraphCoreWindow>
         <GraphCoreWindow title="EGIA" state={coreWindows.egia} onChange={(patch) => updateCoreWindow('egia', patch)} lang={lang}><EgiaWorkbench lang={lang} onOpenGraph={() => updateCoreWindow('egia', { open: false })} /></GraphCoreWindow></>}
       </div>

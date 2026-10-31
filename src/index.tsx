@@ -3,12 +3,15 @@ import { createRoot } from 'react-dom/client';
 import { IsosHome } from '@/components/isos/IsosHome';
 import '@/components/isos/workbench.scss';
 import type { Language } from '@/types';
+import { installBrowserErrorLogging } from '@/services/isos/browser-logs';
 import '@/styles/fonts.css';
 import '@/styles/global.scss';
 
 const NodeGraphManager = lazy(async () => ({ default: (await import('@/components/isos/NodeGraphManager')).NodeGraphManager }));
 const EosWorkbench = lazy(async () => ({ default: (await import('@/components/isos/EosWorkbench')).EosWorkbench }));
 const EgiaWorkbench = lazy(async () => ({ default: (await import('@/components/isos/EgiaWorkbench')).EgiaWorkbench }));
+
+installBrowserErrorLogging();
 
 const theme = localStorage.getItem('island-theme');
 const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');

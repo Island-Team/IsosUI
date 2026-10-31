@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { getLogPage, type LogLine, type LogPage } from '../../services/isos/node-graph';
 import type { Language } from '@/types';
+import { getBrowserLogs, subscribeBrowserLogs } from '../../services/isos/browser-logs';
 import './isos-logs-panel.scss';
 
-const SOURCES = ['all', 'isos', 'packages', 'graph', 'ui', 'services', 'eos', 'egia', 'mujoco', 'bridge', 'config'];
+const SOURCES = ['all', 'isos', 'packages', 'graph', 'browser', 'ui', 'services', 'eos', 'egia', 'mujoco', 'bridge', 'config'];
 export const LOG_LEVELS = ['trace', 'debug', 'info', 'warn', 'error'] as const;
 export type LogLevel = typeof LOG_LEVELS[number];
 
@@ -27,22 +28,24 @@ export function IsosLogsPanel({ lang, onClose, initialSource = 'all' }: { lang: 
   const [level, setLevel] = useState<LogLevel>('warn');
   const [lines, setLines] = useState<LogLine[]>([]);
   const [error, setError] = useState('');
+  const [browserLines, setBrowserLines] = useState(getBrowserLogs);
   const [following, setFollowing] = useState(true);
   const cursor = useRef<string | undefined>(undefined);
+  useEffect(() => subscribeBrowserLogs(() => setBrowserLines(getBrowserLogs())), []);
   useEffect(() => {
     cursor.current = undefined;
     setLines([]);
     setError('');
   }, [source]);
   useEffect(() => {
-    if (!following) return;
+    if (!following || source === 'browser') return;
     let stopped = false;
     let pending = false;
     const poll = async (): Promise<void> => {
       if (stopped || pending || document.visibilityState !== 'visible') return;
       pending = true;
       try {
-        const page = await getLogPage(source, cursor.current);
+        const page = await getLogPage(source === 'all' ? 'all' : source, cursor.current);
         if (!stopped) {
           cursor.current = page.next_cursor ?? (page.rotated ? undefined : cursor.current);
           setLines((current) => appendLogPage(current, page));
@@ -60,13 +63,14 @@ export function IsosLogsPanel({ lang, onClose, initialSource = 'all' }: { lang: 
   }, [source, following]);
 
   const copy = lang === 'cn'
-    ? { title: 'IsOS 日志', source: '来源', all: '所有来源', level: '显示级别', follow: '实时跟踪', close: '关闭', empty: '此级别没有日志', trace: '跟踪及以上', debug: '调试及以上', info: '信息及以上', warn: '警告及以上', error: '仅错误' }
-    : { title: 'IsOS logs', source: 'Source', all: 'All sources', level: 'Display level', follow: 'Follow', close: 'Close', empty: 'No entries at this level', trace: 'Trace and above', debug: 'Debug and above', info: 'Info and above', warn: 'Warnings and errors', error: 'Errors only' };
-  const visible = visibleLogLines(lines, level);
+    ? { title: 'IsOS 与浏览器日志', source: '来源', all: '所有来源', level: '显示级别', follow: '实时跟踪', close: '关闭', empty: '此级别没有日志', trace: '跟踪及以上', debug: '调试及以上', info: '信息及以上', warn: '警告及以上', error: '仅错误' }
+    : { title: 'IsOS and browser logs', source: 'Source', all: 'All sources', level: 'Display level', follow: 'Follow', close: 'Close', empty: 'No entries at this level', trace: 'Trace and above', debug: 'Debug and above', info: 'Info and above', warn: 'Warnings and errors', error: 'Errors only' };
+  const combined = source === 'browser' ? browserLines : source === 'all' ? [...lines, ...browserLines].sort((a, b) => a.timestamp.localeCompare(b.timestamp)) : lines;
+  const visible = visibleLogLines(combined, level);
   return <section className="node-graph-logs" aria-label={copy.title}>
     <header>
       <strong>{copy.title}</strong>
-      <label>{copy.source}<select value={source} onChange={(event) => setSource(event.target.value)}>{SOURCES.map((name) => <option key={name} value={name}>{name === 'all' ? copy.all : name}</option>)}</select></label>
+      <label>{copy.source}<select value={source} onChange={(event) => setSource(event.target.value)}>{SOURCES.map((name) => <option key={name} value={name}>{name === 'all' ? copy.all : name === 'browser' ? (lang === 'cn' ? '浏览器' : 'Browser') : name}</option>)}</select></label>
       <label>{copy.level}<select value={level} onChange={(event) => setLevel(event.target.value as LogLevel)}>{LOG_LEVELS.map((name) => <option key={name} value={name}>{copy[name]}</option>)}</select></label>
       <label className="node-graph-logs__follow"><input type="checkbox" checked={following} onChange={(event) => setFollowing(event.target.checked)} />{copy.follow}</label>
       <button type="button" onClick={onClose} aria-label={`${copy.close} ${copy.title}`}>×</button>

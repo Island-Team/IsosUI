@@ -65,7 +65,8 @@ export interface SetupStatus { ready?: boolean; issues?: string[]; [key: string]
 export interface ProcessLog { node?: string; lines?: string[]; text?: string; [key: string]: unknown }
 export interface LogLine { timestamp: string; level: string; source: string; message: string }
 export interface LogPage { lines: LogLine[]; next_cursor: string | null; rotated: boolean }
-export interface BuildReceipt { component: 'eos'; product_version: string; source_commit: string; binaries: Record<string, string>; sha256: Record<string, string> }
+export interface BuildReceipt { component: 'eos'; product_version: string; source_commit: string; source_fingerprint?: string; binaries: Record<string, string>; sha256: Record<string, string> }
+export interface EosBuildStatus { selected: BuildReceipt | null; source_current: boolean; stale_reason: string | null }
 export interface BuildBinariesReply { receipt: BuildReceipt; suggested_graph?: NodeGraphDocument }
 export interface SelectBinariesReply { receipt: BuildReceipt; graph: NodeGraphDocument }
 export interface AdapterFamilyOption { id: string; device_kinds: string[]; package?: { id: string; version: string }; compiled: boolean; transport: string; description: string; available: boolean; reason?: string }
@@ -134,6 +135,7 @@ export function controlProcesses(operation: 'run' | 'stop' | 'restart', revision
   return request('/process-control', 'POST', { schema_version: 2, operation, ...(revision ? { revision } : {}) });
 }
 export function buildEosBinaries(): Promise<BuildBinariesReply> { return request('/build-binaries', 'POST', { schema_version: 2, target: 'eos', install_deps: false }); }
+export function getEosBuildStatus(): Promise<EosBuildStatus> { return request('/build-binaries'); }
 export function selectEosBinaries(selector: string, revision: string): Promise<SelectBinariesReply> {
   return request('/build-binaries/select', 'POST', { schema_version: 2, selector, revision });
 }

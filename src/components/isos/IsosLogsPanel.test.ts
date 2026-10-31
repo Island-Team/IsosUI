@@ -12,6 +12,8 @@ describe('IsOS log panel', () => {
     const en = renderToStaticMarkup(React.createElement(IsosLogsPanel, { lang: 'en', onClose: () => undefined }));
     const cn = renderToStaticMarkup(React.createElement(IsosLogsPanel, { lang: 'cn', onClose: () => undefined }));
     expect(en).toContain('<option value="all" selected="">All sources</option>');
+    expect(en).toContain('<option value="browser">Browser</option>');
+    expect(cn).toContain('<option value="browser">浏览器</option>');
     expect(en).toContain('<option value="warn" selected="">Warnings and errors</option>');
     expect(cn).toContain('所有来源');
     expect(cn).toContain('警告及以上');
