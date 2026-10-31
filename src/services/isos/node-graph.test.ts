@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getCoreReadiness, previewBackendLink, getInstalledPackages, getLogPage, getNodeOptions, getNodeSets, installBackend, linkBackend, previewNodeSet, type NodeGraph, type NodeSetDefinition } from './node-graph';
+import { applyNodeGraph, controlProcesses, getCoreReadiness, previewBackendLink, getInstalledPackages, getLogPage, getNodeOptions, getNodeSets, installBackend, linkBackend, previewNodeSet, validateNodeGraph, type NodeGraph, type NodeSetDefinition } from './node-graph';
 import { request } from './api-client';
 
 vi.mock('./api-client', () => ({ request: vi.fn() }));
@@ -14,10 +14,25 @@ describe('unified log API', () => {
   });
 });
 
+describe('IsOS v1 graph and process API', () => {
+  it('sends v1 request bodies for validate, apply, and run', async () => {
+    const graph: NodeGraph = { version: '1.0.0', robot: { id: 'test', name: 'Test' }, cores: {} };
+    vi.mocked(request).mockClear().mockResolvedValue({});
+    await validateNodeGraph(graph);
+    await applyNodeGraph('saved-revision', graph);
+    await controlProcesses('run', 'saved-revision');
+    expect(vi.mocked(request).mock.calls).toEqual([
+      ['/node-graph/validate', 'POST', { schema_version: 1, graph }],
+      ['/node-graph', 'PUT', { schema_version: 1, revision: 'saved-revision', graph }],
+      ['/process-control', 'POST', { schema_version: 1, operation: 'run', revision: 'saved-revision' }],
+    ]);
+  });
+});
+
 describe('package node set API', () => {
   it('lists installed contributions and previews composition without applying a graph revision', async () => {
     vi.mocked(request).mockClear();
-    const graph: NodeGraph = { version: '2.0.0', robot: { id: 'test', name: 'Test' }, cores: {} };
+    const graph: NodeGraph = { version: '1.0.0', robot: { id: 'test', name: 'Test' }, cores: {} };
     const set: NodeSetDefinition = { package: { id: 'island/mujoco-sim', version: '2.0.0' }, id: 'hardware', parameters: { scene: { type: 'string', default: 'demo' } }, nodes: [] };
     vi.mocked(request).mockResolvedValueOnce({ sets: [set] }).mockResolvedValueOnce({ graph, added_paths: [] });
     expect(await getNodeSets()).toEqual({ sets: [set] });
@@ -53,7 +68,7 @@ describe('generic package acquisition API', () => {
 
 describe('readiness and local bundle preview API', () => {
   it('reads configured core readiness and previews bundle identity before linking', async () => {
-    const graph: NodeGraph = { version: '2.0.0', robot: { id: 'test', name: 'Test' }, cores: {} };
+    const graph: NodeGraph = { version: '1.0.0', robot: { id: 'test', name: 'Test' }, cores: {} };
     vi.mocked(request).mockClear().mockResolvedValueOnce({ cores: [] }).mockResolvedValueOnce({ id: 'island/mujoco-sim', version: '2.0.0', ready: true, issues: [] }).mockResolvedValueOnce({ adapter_families: [], primitive_bindings: [], targets: [] });
     await getCoreReadiness();
     await previewBackendLink('/opt/mujoco', '/opt/mujoco/release.json');
@@ -61,7 +76,7 @@ describe('readiness and local bundle preview API', () => {
     expect(vi.mocked(request).mock.calls).toEqual([
       ['/core-readiness'],
       ['/packages/preview-link', 'POST', { path: '/opt/mujoco', manifest: '/opt/mujoco/release.json' }],
-      ['/node-options', 'POST', { schema_version: 2, graph }],
+      ['/node-options', 'POST', { schema_version: 1, graph }],
     ]);
   });
 });
