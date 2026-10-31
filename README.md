@@ -1,5 +1,7 @@
 # IsosUI
 
+For the integrated 0.x target, read [first use](docs/isosui/usage.md), [design and algorithms](docs/isosui/design.md), and [implementation TODO](docs/isosui/todo.md). These pages mark planned behavior separately from the current editor described below.
+
 IsosUI is the public source of the IsOS configuration graph editor. It is maintained independently of [IsOS](https://github.com/Island-Team/isos) and Island-web. IsOS owns the local API; Island-web hosts a pinned UI build. Both UIs connect to the IsOS process running at `127.0.0.1:16000`.
 
 ## Develop

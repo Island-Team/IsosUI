@@ -1,0 +1,23 @@
+# First use: graph and workbench
+
+[中文](../../docs_cn/isosui/usage_cn.md) · [Design](design.md) · [TODO](todo.md)
+
+## Current path
+
+1. Install Node.js 22 and npm 10, then run `npm ci` and `npm run build` in this repository. Select the resulting `dist/local` build in IsOS. Alternatively, `npm run dev` starts the standalone frontend on `127.0.0.1:16001`; the IsOS and EOS loopback APIs must be running for graph and live controls.
+2. Start IsOS with `isos serve` and open `/en/isos` or `/cn/isos`. Home shows manager setup, installed package receipts, core readiness, process state, and all-source logs. An offline API is an explicit blocked state, not an empty graph.
+3. Install or link the exact `island/mujoco-sim@0.1.1` package in IsOS. In Graph, choose the installed `sim-hardware` node set, preview its additions, and select a scene. The current editor obtains scenes from `/backends` and device/adapter choices from `/node-options`; its package choices are not yet a general asset selector.
+4. Select each node to read its description and configure its type-defined fields. Connect compatible output and input ports. Check graph, then use the primary Graph action to save and run the revision. The server validates and applies the graph; a browser draft alone does not control EOS.
+5. Wait for Home readiness, then open EOS controls and monitor. Controls appear only for declared nodes in the active graph. The current Graph View menu can float a combined EOS or EGIA window; Vision and the control/monitor/log sections are not independent floating panels yet.
+6. To find a failure, open Home Logs with **All sources**, use timestamps and sources to find this launch's first setup, ready, or failure event. Filter by source and level only after locating that event. Copy the saved/active revision and event timestamp into the EOS or EGIA investigation; a stale active revision blocks live control. Current log entries have timestamp, level, source and message; correlation fields are target behavior.
+7. Stop the deployment with IsOS. For an upgrade, install a new exact package version, preview its nodes, check the graph, apply a new revision, and restart. Retain the previous graph and package receipt for recovery.
+
+The root [README](../../README.md) gives the actual development commands, API origins and build outputs. IsOS owns package installation and process operations.
+
+## Target interaction
+
+Graph starts with a searchable registered type library. A selected type shows its nonblank **type description**, placement, capabilities, port contract and setting help; a selected instance shows its own editable description. The configuration form renders settings from catalog metadata. A selector, like a model-weight picker, searches verified options for that **node and setting**; scene and device options ship first. The selector header shows the exact package/version pin; each option row shows stable ID, human label, description, availability and reason. Keep an unavailable saved value visible with its reason; never silently replace it. Check graph remains available and reports unresolved or invalid choices; Apply is blocked until they are corrected. Package paths stay private to IsOS; the graph saves stable IDs and exact package pins.
+
+Each wire exposes `priority` (nice `-20..19`, default `0`) and optional `frequency_hz` (positive finite delivery cap). The inspector edits them against an IsOS validation result. Labels show both values at normal zoom and in keyboard focus text; the legend explains priority and frequency separately from transport and payload type. A wire without an active runtime route is explicitly **design only**. Priority affects scheduling, never dispatcher safety admission.
+
+The workspace docks or floats **control**, **monitor**, **Vision**, and **logs** independently. A floating panel has a drag handle, resize handle, focus order, close/dock action, bounded viewport, and local layout persistence. When reopening, clamp saved geometry to the viewport. On a narrow screen, stack panels and preserve Stop, connection failure and stale-revision indicators. Work pages use compact aligned rows and transparent or lightly translucent surfaces; visual overview pages may use wider spacing. Both share Island-web-inspired tokens, restrained borders, visible keyboard focus, 28–30 px desktop controls and at least 44×44 px touch targets.
