@@ -2,7 +2,7 @@
 
 IsosUI is the public, Apache-2.0 source of the IsOS configuration editor. Maintain the editor here. Island-web hosts a pinned build; IsOS owns the loopback API and serves its selected, verified static local build by default. `isos serve --ui-live` supervises the npm frontend only in dev mode. Do not copy site pages, authentication, package-center code, or server logic into this repo.
 
-Follow the shared [Island conventions v1.2.0](../Island-eos/docs/island/conventions.v1.2.0.md), adapted to this frontend. Keep desktop controls near 30 px high and touch targets at least 44×44 px.
+Follow the shared [Island conventions v1.3.0](../Island-eos/docs/island/conventions.v1.3.0.md), adapted to this frontend. Keep desktop controls near 30 px high and touch targets at least 44×44 px.
 
 - Use npm, React 18, strict TypeScript, SCSS, and Webpack. Keep network calls in `src/services/`; components must not fetch directly.
 - Preserve `/en/isos` and `/cn/isos` as editor URLs. Keep both languages in the editor copy. Use the existing theme token names and accessible controls.

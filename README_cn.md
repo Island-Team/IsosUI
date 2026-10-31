@@ -1,5 +1,7 @@
 # IsosUI
 
+集成 0.x 目标见[首次使用](docs_cn/isosui/usage_cn.md)、[设计与算法](docs_cn/isosui/design_cn.md)及[实现 TODO](docs_cn/isosui/todo_cn.md)。这些文档将计划行为与下文的当前编辑器区分开。
+
 IsosUI 是公开的 IsOS 配置图编辑器源码，采用 Apache-2.0 许可证。编辑器在本仓库维护；IsOS 提供本地 API，Island-web 托管固定版本的前端构建产物。
 
 ## 开发与构建
