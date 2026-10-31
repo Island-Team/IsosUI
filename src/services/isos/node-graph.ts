@@ -62,9 +62,9 @@ export interface NodeSetDefinition {
 }
 export interface NodeSetPreview { graph: NodeGraph; added_paths: string[] }
 export interface SetupStatus { ready?: boolean; issues?: string[]; [key: string]: unknown }
-export interface ProcessLog { node?: string; lines?: string[]; text?: string; [key: string]: unknown }
 export interface LogLine { timestamp: string; level: string; source: string; message: string }
 export interface LogPage { lines: LogLine[]; next_cursor: string | null; rotated: boolean }
+export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
 export interface BuildReceipt { component: 'eos'; product_version: string; source_commit: string; source_fingerprint?: string; binaries: Record<string, string>; sha256: Record<string, string> }
 export interface EosBuildStatus { selected: BuildReceipt | null; source_current: boolean; stale_reason: string | null }
 export interface BuildBinariesReply { receipt: BuildReceipt; suggested_graph?: NodeGraphDocument }
@@ -140,11 +140,8 @@ export function selectEosBinaries(selector: string, revision: string): Promise<S
   return request('/build-binaries/select', 'POST', { schema_version: 2, selector, revision });
 }
 export function getNodeOptions(graph: NodeGraph): Promise<NodeOptions> { return request('/node-options', 'POST', { schema_version: 2, graph }); }
-export function getProcessLogs(node: string, lines = 100): Promise<ProcessLog> {
-  return request(`/process-logs/${encodeURIComponent(node)}?lines=${Math.max(1, Math.min(500, Math.floor(lines)))}`);
-}
-export function getLogPage(source: string, cursor?: string, limit = 200): Promise<LogPage> {
-  const params = new URLSearchParams({ source, limit: String(Math.max(1, Math.min(200, Math.floor(limit)))) });
+export function getLogPage(source: string, level: LogLevel, cursor?: string, limit = 200): Promise<LogPage> {
+  const params = new URLSearchParams({ source, level, limit: String(Math.max(1, Math.min(200, Math.floor(limit)))) });
   if (cursor) params.set('cursor', cursor);
   return request(`/logs?${params.toString()}`);
 }

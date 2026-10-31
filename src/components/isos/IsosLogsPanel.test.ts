@@ -19,6 +19,11 @@ describe('IsOS log panel', () => {
     expect(cn).toContain('警告及以上');
   });
 
+  it('includes the selected managed process even when it is not a predefined source', () => {
+    const html = renderToStaticMarkup(React.createElement(IsosLogsPanel, { lang: 'en', initialSource: 'eos-core', onClose: () => undefined }));
+    expect(html).toContain('<option value="eos-core" selected="">eos-core</option>');
+  });
+
   it('filters displayed severity without discarding the buffered stream', () => {
     const lines = ['trace', 'debug', 'info', 'warn', 'warning', 'error', 'unrecognized'].map(line);
     expect(visibleLogLines(lines, 'warn').map((entry) => entry.level)).toEqual(['warn', 'warning', 'error', 'unrecognized']);

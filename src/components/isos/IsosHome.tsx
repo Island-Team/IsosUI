@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { applyNodeGraph, controlProcesses, getBackends, getInstalledPackages, getNodeGraph, getProcessLogs, getProcessStatus, getSetupStatus, graphWithBackendScene, installBackend, linkBackend, requiredBackend, validateNodeGraph, type BackendPackage, type InstalledPackage, type NodeGraph, type ProcessStatus, type SetupStatus } from '@/services/isos/node-graph';
+import { applyNodeGraph, controlProcesses, getBackends, getInstalledPackages, getNodeGraph, getProcessStatus, getSetupStatus, graphWithBackendScene, installBackend, linkBackend, requiredBackend, validateNodeGraph, type BackendPackage, type InstalledPackage, type NodeGraph, type ProcessStatus, type SetupStatus } from '@/services/isos/node-graph';
+import { IsosLogsPanel } from './IsosLogsPanel';
 import type { Language } from '@/types';
 import './workbench.scss';
 
@@ -24,7 +25,6 @@ export function IsosHome({ lang, onOpenGraph, graphDirty }: Props): React.ReactE
   const [packageVersion, setPackageVersion] = useState('');
   const [setup, setSetup] = useState<SetupStatus | null>(null);
   const [selected, setSelected] = useState('');
-  const [logText, setLogText] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const refresh = useCallback(async (): Promise<void> => {
@@ -40,11 +40,6 @@ export function IsosHome({ lang, onOpenGraph, graphDirty }: Props): React.ReactE
     try { await controlProcesses(operation, operation === 'stop' ? undefined : revision); await refresh(); }
     catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
     finally { setBusy(false); }
-  };
-  const showLogs = async (node: string): Promise<void> => {
-    setSelected(node); setLogText(copy.loading);
-    try { const result = await getProcessLogs(node); setLogText(result.text ?? result.lines?.join('\n') ?? ''); }
-    catch (error) { setLogText(error instanceof Error ? error.message : String(error)); }
   };
   const addPackage = async (source: 'link' | 'catalog'): Promise<void> => {
     const id = packageId.trim(); const version = packageVersion.trim();
@@ -85,6 +80,6 @@ export function IsosHome({ lang, onOpenGraph, graphDirty }: Props): React.ReactE
     <section className="isos-home__controls" aria-label={copy.processes}><button type="button" onClick={() => void control('run')} disabled={busy || !revision || graphDirty}>{copy.run}</button><button type="button" onClick={() => void control('restart')} disabled={busy || !revision || graphDirty}>{copy.restart}</button><button type="button" onClick={() => void control('stop')} disabled={busy}>{copy.stop}</button></section>
     <div className="isos-home__columns"><section><h2>{copy.installed}</h2>{installed.length ? <ul className="isos-home__installed">{installed.map((entry) => <li key={`${entry.id}@${entry.version}`}><strong>{entry.id}</strong><code>{entry.version}</code><span>{entry.local_link ? copy.linkedSource : copy.archiveSource}</span></li>)}</ul> : <p>{copy.noInstalled}</p>}<h2>{copy.packages}</h2>{required && <div className="isos-home__package-required"><strong>{copy.required}: <code>{required.id}@{required.version}</code></strong><p role="status" className={requiredInstalled ? 'isos-ready' : 'isos-attention'}>{requiredInstalled ? copy.linked : copy.missing}</p></div>}<div className="isos-home__package-install"><label htmlFor="isos-package-id">{copy.packageId}</label><input id="isos-package-id" value={packageId} onChange={(event) => setPackageId(event.target.value)} placeholder="island/mujoco-sim" autoComplete="off" /><label htmlFor="isos-package-version">{copy.packageVersion}</label><input id="isos-package-version" value={packageVersion} onChange={(event) => setPackageVersion(event.target.value)} placeholder="2.0.0" autoComplete="off" /><label htmlFor="isos-bundle-path">{copy.localBundle}</label><input id="isos-bundle-path" value={bundlePath} onChange={(event) => setBundlePath(event.target.value)} placeholder="/absolute/path/to/bundle" autoComplete="off" /><label htmlFor="isos-manifest-path">{copy.manifestPath}</label><input id="isos-manifest-path" value={manifestPath} onChange={(event) => setManifestPath(event.target.value)} placeholder="/absolute/path/to/release.json" autoComplete="off" /><div><button type="button" disabled={busy || !packageId.trim() || !packageVersion.trim() || !bundlePath.trim().startsWith('/') || Boolean(manifestPath.trim() && !manifestPath.trim().startsWith('/'))} onClick={() => void addPackage('link')}>{copy.link}</button><button type="button" disabled={busy || !packageId.trim() || !packageVersion.trim()} onClick={() => void addPackage('catalog')}>{copy.catalog}</button></div></div>{packages.length ? <ul className="isos-home__cards">{packages.map((entry) => <li key={`${entry.id}@${entry.version}`} tabIndex={0} aria-label={`${entry.id} v${entry.version}: ${entry.ready ? copy.ready : copy.attention}`}><strong>{entry.id}</strong><code>v{entry.version}{entry.linked ? ' · linked' : ''}</code><span className={entry.ready ? 'isos-ready' : 'isos-attention'}>{entry.ready ? copy.ready : copy.attention}</span><div className="isos-home__card-details"><p>{copy.scenes}: {entry.scenes.join(', ') || '—'}</p><p>{copy.devices}: {entry.devices.join(', ') || '—'}</p>{entry.issues.length > 0 && <ul>{entry.issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul>}</div></li>)}</ul> : <p>{copy.noPackages}</p>}</section>
     <section><h2>{copy.setup}</h2>{setup?.issues?.length ? <ul>{setup.issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul> : <p>{setup ? copy.noIssues : '—'}</p>}{status?.last_error && <p role="alert">{copy.lastError}: {status.last_error}</p>}</section></div>
-    <section className="isos-home__processes"><h2>{copy.processes}</h2>{status?.processes.length ? <ul>{status.processes.map((process) => <li key={process.id}><div><strong>{process.id}</strong><span>{process.state || (process.pid ? 'running' : 'stopped')} · PID {process.pid ?? '—'} · restarts {process.restarts}</span>{process.last_error && <small role="alert">{process.last_error}</small>}</div><button type="button" onClick={() => void showLogs(process.id)}>{copy.logs}</button></li>)}</ul> : <p>{copy.noProcesses}</p>}{selected && <div className="isos-home__logs"><h3>{copy.logs}: {selected}</h3><pre aria-live="polite">{logText}</pre></div>}</section>
+    <section className="isos-home__processes"><h2>{copy.processes}</h2>{status?.processes.length ? <ul>{status.processes.map((process) => <li key={process.id}><div><strong>{process.id}</strong><span>{process.state || (process.pid ? 'running' : 'stopped')} · PID {process.pid ?? '—'} · restarts {process.restarts}</span>{process.last_error && <small role="alert">{process.last_error}</small>}</div><button type="button" onClick={() => setSelected(process.id)}>{copy.logs}</button></li>)}</ul> : <p>{copy.noProcesses}</p>}{selected && <div className="isos-home__logs"><IsosLogsPanel key={selected} lang={lang} initialSource={selected} onClose={() => setSelected('')} /></div>}</section>
   </main>;
 }

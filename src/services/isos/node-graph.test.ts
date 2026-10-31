@@ -1,11 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildEosBinaries, selectEosBinaries, getInstalledPackages, getNodeOptions, getNodeSets, installBackend, linkBackend, previewNodeSet, type NodeGraph, type NodeSetDefinition } from './node-graph';
+import { buildEosBinaries, selectEosBinaries, getInstalledPackages, getLogPage, getNodeOptions, getNodeSets, installBackend, linkBackend, previewNodeSet, type NodeGraph, type NodeSetDefinition } from './node-graph';
 import { request } from './config-manager';
 
 vi.mock('./config-manager', () => ({ request: vi.fn() }));
 
+describe('unified log API', () => {
+  it('requests a specific source, minimum severity, and cursor', async () => {
+    vi.mocked(request).mockClear().mockResolvedValue({ lines: [], next_cursor: null, rotated: false });
+    await getLogPage('eos/core', 'warn', 'page 1', 500);
+    expect(vi.mocked(request).mock.calls).toEqual([
+      ['/logs?source=eos%2Fcore&level=warn&limit=200&cursor=page+1'],
+    ]);
+  });
+});
+
 describe('package node set API', () => {
   it('lists installed contributions and previews composition without applying a graph revision', async () => {
+    vi.mocked(request).mockClear();
     const graph: NodeGraph = { version: '2.0.0', robot: { id: 'test', name: 'Test' }, cores: {} };
     const set: NodeSetDefinition = { package: { id: 'island/mujoco-sim', version: '2.0.0' }, id: 'hardware', parameters: { scene: { type: 'string', default: 'demo' } }, nodes: [] };
     vi.mocked(request).mockResolvedValueOnce({ sets: [set] }).mockResolvedValueOnce({ graph, added_paths: [] }).mockResolvedValueOnce({ graph, added_paths: [] });
