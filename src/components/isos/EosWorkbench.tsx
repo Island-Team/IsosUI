@@ -2,12 +2,13 @@ import { canonicalNodePath } from './node-graph-edits';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { eosRequest, type EosControlReply, type EosDiscoveryNode } from '@/services/eos/control';
 import { VisionPanel } from './VisionPanel';
+import { PrimitiveBaseCard } from './PrimitiveBaseCard';
 import { getNodeGraph, getNodeTypes, getProcessStatus, nodeGraphHasEditableShape, nodeGraphReadOnlyReason, type NodeGraphDocument, type NodeInstance, type ProcessStatus } from '@/services/isos/node-graph';
 import type { Language } from '@/types';
 import { activeGraphIsCurrent, defaultMovement, discoveredHardware, eosControlNodes, eosGraphNodes, hardwareKind, monitorBadge, movementTypes, movementValid, visionRuntimeState, type AdapterStatus, type EosGraphNode, type Movement, type MovementType } from './eos-control-model';
 import './eos-workbench.scss';
 
-interface Props { lang: Language; onOpenGraph: () => void; graphDirty: boolean }
+interface Props { lang: Language; onOpenGraph: () => void; onOpenLogs?: () => void; graphDirty: boolean }
 interface Health { state: string; code?: string | null; message?: string | null }
 interface Reading { status?: AdapterStatus; statusAt?: number; health?: Health; healthAt?: number; observation?: Record<string, unknown>; observationAt?: number; error?: string }
 const COPY = {
@@ -145,7 +146,7 @@ function Observation({ kind, value }: { kind: string; value?: Record<string, unk
   return <span>—</span>;
 }
 
-export function EosWorkbench({ lang, onOpenGraph, graphDirty }: Props): React.ReactElement {
+export function EosWorkbench({ lang, onOpenGraph, onOpenLogs, graphDirty }: Props): React.ReactElement {
   const copy = COPY[lang];
   const [graphDoc, setGraphDoc] = useState<NodeGraphDocument | null>(null);
   const [readOnlyReason, setReadOnlyReason] = useState<string | null>(null);
@@ -211,9 +212,7 @@ export function EosWorkbench({ lang, onOpenGraph, graphDirty }: Props): React.Re
     {readOnlyReason && <p role="alert" className="eos-control__warning">{lang === 'cn' ? '只读节点图：' : 'Read-only graph: '}{readOnlyReason}</p>}
     {!active && <p role="status" className="eos-control__warning">{copy.off}</p>}
     {error && <p role="alert" className="eos-control__warning">{error}</p>}
-    <section id="eos-controls" className="eos-workbench__section"><h2>{copy.controls}</h2>{controls.length ? <div className="eos-workbench__controls">{controls.map((entry) => entry.node.node_type === 'eos.control.skill@v1.0'
-      ? <SkillControl key={`${graphDoc?.revision}:${entry.path}`} entry={entry} nodes={nodes} hardware={hardware} readings={readings} clock={clock} active={active} lang={lang} />
-      : <MovementControl key={`${graphDoc?.revision}:${entry.path}`} entry={entry} hardware={hardware.find((node) => node.path === canonicalNodePath(String(entry.node.settings?.target || '')))} reading={readings[canonicalNodePath(String(entry.node.settings?.target || ''))]} clock={clock} active={active} lang={lang} />)}</div> : <p>{copy.noControls}</p>}</section>
+    <section id="eos-controls" className="eos-workbench__section"><h2>{copy.controls}</h2><div className="eos-workbench__controls"><PrimitiveBaseCard lang={lang} graph={graphDoc} status={status} dirty={graphDirty} readOnly={Boolean(readOnlyReason)} readings={readings} clock={clock} onStop={setStatus} onOpenLogs={onOpenLogs || (() => { window.location.href = `/${lang}/isos?page=home&logs=1`; })} /></div></section>
     <section id="eos-monitor" className="eos-workbench__section"><h2>{copy.monitor}</h2>{hardware.length ? <div className="eos-monitor__grid">{hardware.map((entry) => {
       const kind = hardwareKind(entry.node.node_type); const reading = readings[entry.path]; const badge = monitorBadge(reading, clock);
       return <article className={`eos-monitor__card eos-monitor__card--${kind}`} key={entry.path}><header><h3>{entry.node.label || entry.node.id}</h3><span className={`eos-monitor__${badge}`}>{copy[badge]}</span></header><p><code>{kind}</code> · {copy.status}: {reading?.status?.state || '—'} · {copy.health}: {reading?.health?.state || '—'}</p>{reading?.status?.active_command_id && <p>{copy.command}: <code>{reading.status.active_command_id}</code></p>}{reading?.health?.message && <p>{reading.health.message}</p>}{reading?.error && <p role="alert">{reading.error}</p>}{kind !== 'camera' && <><h4>{copy.observation}</h4><Observation kind={kind || ''} value={reading?.observation} />{reading?.observationAt && <p>{copy.update}: {new Date(reading.observationAt).toLocaleTimeString()}</p>}</>}</article>;

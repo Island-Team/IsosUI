@@ -29,7 +29,7 @@ export function IsosHome({ lang, onOpenGraph, graphDirty }: Props): React.ReactE
   const [readiness, setReadiness] = useState<CoreReadiness | null>(null);
   const [linkPreview, setLinkPreview] = useState<LinkPreview | null>(null);
   const [previewIssue, setPreviewIssue] = useState('');
-  const [logsOpen, setLogsOpen] = useState(false);
+  const [logsOpen, setLogsOpen] = useState(() => new URLSearchParams(window.location.search).get('logs') === '1');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const refresh = useCallback(async (): Promise<void> => {

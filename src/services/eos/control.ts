@@ -1,6 +1,7 @@
 /** Loopback EOS v2 bridge. IsOS supplies the graph; EOS admits every live call. */
 const ORIGIN = typeof ISOSUI_EOS_API_ORIGIN === 'undefined' ? 'http://127.0.0.1:16020' : ISOSUI_EOS_API_ORIGIN;
 const BASE = `${ORIGIN}/api/eos/v2`;
+export const EOS_CONTROL_URL = `${BASE}/control`;
 
 type LoopbackRequestInit = RequestInit & { targetAddressSpace?: 'loopback' };
 
@@ -36,7 +37,7 @@ export async function eosRequest<T extends EosControlReply>(body: Record<string,
     signal: AbortSignal.timeout(4000),
   };
   let response: Response;
-  try { response = await fetch(`${BASE}/control`, options); }
+  try { response = await fetch(EOS_CONTROL_URL, options); }
   catch { throw new Error(`Cannot reach EOS at ${ORIGIN}. Check that IsOS is running EOS.`); }
   const reply = await response.json() as T;
   if (!response.ok || !reply.ok) throw new Error(reply.error || `EOS request failed (${response.status}).`);
