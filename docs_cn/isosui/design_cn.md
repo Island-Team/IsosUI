@@ -30,6 +30,8 @@ IsOS 拥有已保存图、类型目录、包收据、`/api/isos/v1/node-options`
 
 **目标首个原语演示。** EOS 控制面板对活动图中的每个 `eos.dispatcher.primitive_base` 或 `eos.dispatcher.primitive_manipulator` 绑定单独列出一项，即使原语名称相同。选中后显示绑定的类型/实例描述、从活动图解析出的唯一目标、声明的原语/版本/模式、参数单位/边界，以及 EOS 报告的目标健康。活动修订过期、目标缺失或不唯一、EOS 不可用、参数无效或目标不健康时禁用 Invoke。面板取得 EOS 单调时钟时间，构造现有 `primitive_typed` 命令头/载荷，经 `/api/eos/v2/control` 提交；EOS 检查活动绑定，由 Dispatcher 准入物理动作。调用后选中的 Graph 节点显示 `sending`，再显示精确关联的 `Completed`、`Failed`、`Cancelled`、`Rejected`、`InProgress` 或 `OutcomeUnknown`。`InProgress` 保持非终态；后续结果需要经授权的 bridge 结果读取。视觉脉冲取自关联响应或运行事件，不把仅设计连线或浏览器猜测当作成功。面板保持 IsOS Stop 与命令 ID 可见。[R07 客户端设计](design-browser-results_cn.md)定义运行／修订围栏、类型化后续查询及不可用状态；完整原语表单属于 U04。EGIA 的 gRPC CapabilityService 是汇入同一 Dispatcher 的独立入口，不是浏览器 API。
 
+R07 首先通过模拟适配器证明一个操作员点击触发的活动 `base.velocity` 绑定、有界 `body_velocity` 表单、类型化发送、`InProgress` 后续查询及 IsOS Stop；真实 MuJoCo 运动须等 R06 停止验证后才开放。U04 扩展到每个活动 base 和 arm 绑定均有一个控件，并提供完整目录及节点卡。
+
 ## 面板与页面类型
 
 Home、Graph、配置属于**工作页面**：紧凑对齐、方便扫读、有界滚动、状态上下文持续可见。概览或解释性首页属于**视觉页面**，可用更宽间距和图像。两类页面共享现有 SCSS 主题 token、Island-web 的排版参考、透明或轻微半透明表面；实色填充只用于提高可读性。桌面控件约 28–30 px，触控目标至少 44×44 px。全部控件有可见键盘焦点、禁用与错误状态；状态不能只靠颜色表达。
