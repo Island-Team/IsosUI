@@ -6,7 +6,7 @@
 
 ## 所有权与数据流
 
-IsOS 拥有已保存图、类型目录、包收据、`/api/isos/v1/node-options`、验证、修订、Apply、管理器状态与统一日志游标。EOS 拥有实时适配器状态、观察、控制与准入。EGIA 拥有代理阶段状态。IsosUI 只保存图草稿、服务器修订、临时选项结果和浏览器本地面板布局。不能从草稿推断已验证包路径、命令权限或实时状态。所有者契约见 IsOS 的 `interfaces/node-graph.md`、`interfaces/packages.md` 和 EOS 的 `interfaces/hardware.md`、`interfaces/control.md`；本页只定义 UI 呈现。
+IsOS 拥有已保存图、类型目录、包收据、`/api/isos/v1/node-options`、验证、修订、Apply、管理器状态与统一日志游标。EOS 拥有实时适配器状态、观察、控制与准入。EGIA 拥有代理阶段状态。IsosUI 只保存图草稿、服务器修订、临时选项结果和浏览器本地面板布局。不能从草稿推断已验证包路径、命令权限或实时状态。所有者契约见 IsOS 的 `interfaces/node-graph.md`、`interfaces/releases.md` 和 EOS 的 `interfaces/hardware.md`、`interfaces/control.md`；本页只定义 UI 呈现。
 
 目标 UI 状态为 `{saved_revision, draft, validation, active_revision, catalog, options, readiness, panels}`。编辑更新草稿并使验证结果过期。`Check graph` 请求 IsOS 验证但不写入。`Apply` 发送精确的已保存修订与草稿；冲突时保留本地草稿并展示服务器修订，让操作员明确协调。编辑器可在内存中规范化旧图，但显式 Apply 前不改写已存字节。未知未来图版本只读并报版本错误。UI 版本 `0.1.0` 不代表图 `1.0.0` 已稳定。
 
