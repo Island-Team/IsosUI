@@ -1,4 +1,4 @@
-# 日志游标面板设计——P07 目标
+# 日志游标面板设计——P07
 
 [English](../../docs/isosui/design-log-cursors.md) · [UI 契约](interfaces/log-cursors_cn.md) · [工作台设计](design_cn.md)
 
@@ -21,3 +21,5 @@ UI 将事件字段作为转义文本呈现，展示来源／核心／运行／�
 [夹具](../../tests/fixtures/log_cursors/README_cn.md)冻结规约器及服务边界：管理器故障、启动切换、筛选前首就绪／首故障、旧运行响应竞态、有无丢失的轮转、过期游标、收集器故障／恢复、新运行及旧 API 回退。实现测试应使用桩 IsOS HTTP 服务和伪定时器，再构建本地和托管产物。完整输出保存在忽略的 `logs/test/<run-id>/`。
 
 设计证据（2026-11-01）：使用 Node 22.23.2 与 npm 10.9.9，`python3 tests/fixtures/log_cursors/check_log_cursors.py` 校验 31 个唯一用例及十份中英文链接文档。JSON 语法、Python 编译和 `git diff --check` 通过。`npm test` 通过 17 个文件中的 62 项测试；`npm run build` 通过类型检查、本地／托管两种构建及清单校验。UI 源码未改动，因此这些是设计产物和现有基线检查，不代表 P07 行为验收。完整命令及输出位于忽略的 `logs/test/20261101-p07-log-cursors-design-final/`。
+
+实现证据（2026-11-01）：服务以精确详情查询请求 `view=current`，验证归属方响应后才进入当前运行视图。面板固定未筛选的首事件，按接收顺序显示日志，轮转时保留已有行，报告缺口，重置被拒游标，区分新运行，在收集器故障后等待 30 秒重试，并将浏览器诊断独立显示。Run 的类型化发布故障会重新读取状态及当前日志。HTTP 桩及挂载面板的伪定时器测试覆盖管理器故障、首条就绪／故障、范围切换、轮转、游标拒绝、503 身份不可用、收集器恢复和旧版回退。使用 Node 22.23.2，`npm test` 通过 20 个文件中的 78 项测试，`npm run typecheck` 通过，`npm run build` 校验本地和托管两种构建及清单。P07 夹具检查器校验 31 个唯一用例和十份双语文档。完整输出和可复现命令位于忽略的 `logs/test/20261101-p07-isosui-implementation/`。当前视图需要 IsOS P07 服务端支持；旧版 IsOS 仅显示兼容提示，不声称找到首事件。

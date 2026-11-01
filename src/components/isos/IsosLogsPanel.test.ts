@@ -12,8 +12,8 @@ describe('IsOS log panel', () => {
     const en = renderToStaticMarkup(React.createElement(IsosLogsPanel, { lang: 'en', onClose: () => undefined }));
     const cn = renderToStaticMarkup(React.createElement(IsosLogsPanel, { lang: 'cn', onClose: () => undefined }));
     expect(en).toContain('<option value="all" selected="">All sources</option>');
-    expect(en).toContain('<option value="browser">Browser</option>');
-    expect(cn).toContain('<option value="browser">浏览器</option>');
+    expect(en).toContain('<option value="browser">Local browser logs</option>');
+    expect(cn).toContain('<option value="browser">浏览器本地日志</option>');
     expect(en).toContain('<option value="info" selected="">Info and above</option>');
     expect(cn).toContain('所有来源');
     expect(cn).toContain('<option value="info" selected="">信息及以上</option>');
@@ -39,8 +39,19 @@ describe('IsOS log panel', () => {
     expect(lines).toHaveLength(7);
   });
 
-  it('clears the previous stream on rotation and bounds retained entries', () => {
-    expect(appendLogPage([line('info')], { lines: [line('error')], next_cursor: 'next', rotated: true })).toEqual([line('error')]);
+  it('keeps retained entries on rotation and bounds the panel', () => {
+    expect(appendLogPage([line('info')], { lines: [line('error')], next_cursor: 'next', rotated: true })).toEqual([line('info'), line('error')]);
     expect(appendLogPage(Array.from({ length: 1000 }, () => line('info')), { lines: [line('error')], next_cursor: 'next', rotated: false })).toHaveLength(1000);
+  });
+
+  it('renders separate local browser logs and an unfiltered first-event region in both languages', () => {
+    const en = renderToStaticMarkup(React.createElement(IsosLogsPanel, { lang: 'en', onClose: () => undefined }));
+    const cn = renderToStaticMarkup(React.createElement(IsosLogsPanel, { lang: 'cn', onClose: () => undefined }));
+    expect(en).toContain('Local browser logs');
+    expect(en).toContain('Subsequent logs');
+    expect(en).toContain('Jump to first event');
+    expect(cn).toContain('浏览器本地日志');
+    expect(cn).toContain('后续日志');
+    expect(cn).toContain('跳转到首条事件');
   });
 });

@@ -1,8 +1,8 @@
-# Current-run log navigation — target P07 UI contract
+# Current-run log navigation — P07 UI contract
 
 [中文](../../../docs_cn/isosui/interfaces/log-cursors_cn.md) · [Workbench design](../design-log-cursors.md) · [First use](../usage.md)
 
-**Target, not implemented.** IsOS owns the manager-session ID, deployment-run ID, accepted event order, retention, first-event anchor, opaque cursor, rotation gap and live status. IsosUI presents those owner values. Its local browser console is a separate source of diagnostic text and never supplies an IsOS run, event, PID or readiness claim. The current UI only reads `{lines,next_cursor,rotated}` and cannot guarantee a first event across rotation.
+**Implemented UI slice; requires IsOS P07 server support.** IsOS owns the manager-session ID, deployment-run ID, accepted event order, retention, first-event anchor, opaque cursor, rotation gap and live status. IsosUI presents those owner values. Its local browser console is a separate source of diagnostic text and never supplies an IsOS run, event, PID or readiness claim. The P07 panel opts into `view=current`, pins the owner anchor above filters, and keeps browser logs separate. An older IsOS response receives an explicit compatibility notice.
 
 ## Selection and ordering
 

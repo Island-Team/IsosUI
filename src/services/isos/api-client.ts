@@ -4,6 +4,19 @@ const BASE = `${ISOSUI_API_ORIGIN}/api/isos/v1`;
 interface Envelope<T> { schema_version: 1; ok: boolean; data: T | null; error: string | null }
 type LoopbackRequestInit = RequestInit & { targetAddressSpace?: 'loopback' };
 
+export class IsosApiError extends Error {
+  constructor(message: string, public readonly status: number, public readonly code?: string) {
+    super(message);
+    this.name = 'IsosApiError';
+  }
+}
+
+function diagnosticCode(data: unknown): string | undefined {
+  if (!data || typeof data !== 'object' || !('diagnostics' in data) || !Array.isArray(data.diagnostics)) return undefined;
+  const first: unknown = data.diagnostics[0];
+  return first && typeof first === 'object' && 'code' in first && typeof first.code === 'string' ? first.code : undefined;
+}
+
 export async function request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   let response: Response;
   try {
@@ -31,7 +44,7 @@ export async function request<T>(path: string, method = 'GET', body?: unknown): 
   }
   if (!response.ok || !envelope?.ok || envelope.data === null) {
     if (response.status === 409) throw new Error('This graph changed in another editor. Refresh before applying.');
-    throw new Error(envelope?.error || `IsOS request failed (${response.status}).`);
+    throw new IsosApiError(envelope?.error || `IsOS request failed (${response.status}).`, response.status, diagnosticCode(envelope?.data));
   }
   return envelope.data;
 }

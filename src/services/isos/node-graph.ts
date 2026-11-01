@@ -52,6 +52,8 @@ export interface ProcessStatus {
   active_revision?: string | null;
   state?: 'stopped' | 'running' | 'degraded';
   last_error?: string | null;
+  run_id?: string | null;
+  run_id_state?: 'none' | 'known' | 'unavailable';
   processes: { id: string; pid?: number; restarts: number; state?: string; last_error?: string | null }[];
 }
 export interface BackendPackage { id: string; version: string; linked: boolean; scenes: string[]; devices: string[]; ready: boolean; issues: string[] }
@@ -64,9 +66,15 @@ export interface NodeSetDefinition {
 }
 export interface NodeSetPreview { graph: NodeGraph; added_paths: string[] }
 export interface SetupStatus { ready?: boolean; issues?: string[]; [key: string]: unknown }
-export interface LogLine { timestamp: string; level: string; source: string; message: string }
+export interface LogLine { timestamp: string; level: string; source: string; message: string; core?: string; node_path?: string | null; event_code?: string; run_id?: string; correlation_id?: string | null; pid?: number | null; fields?: Record<string, string | number | boolean | null> }
 export interface LogPage { lines: LogLine[]; next_cursor: string | null; rotated: boolean }
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
+export interface LogScope { kind: 'manager_session' | 'deployment_run'; run_id: string; active_revision: string | null }
+export interface LogAnchor { kind: 'first_prelaunch_failure' | 'first_ready_or_failure'; state: 'pending' | 'found' | 'unavailable'; event: LogLine | null }
+export type LogDiagnosticCode = 'log_run_changed' | 'log_cursor_expired' | 'log_collector_gap' | 'log_anchor_unavailable';
+export interface LogDiagnostic { code: LogDiagnosticCode; count: number | null }
+export interface CurrentLogPage extends LogPage { scope: LogScope; anchor: LogAnchor; diagnostics: LogDiagnostic[]; next_cursor: string }
+export interface CurrentLogQuery { source: string; level: LogLevel; node_path?: string; correlation_id?: string; cursor?: string; limit?: number }
 export interface CoreReadinessEntry { core: string; path: string | null; version: string | null; compatible: boolean; configured: boolean; enabled?: boolean; graph_configured: boolean; running: boolean; ready: boolean; reason?: string | null; action?: string | null }
 export interface CoreReadiness { cores: CoreReadinessEntry[] }
 export interface LinkPreview { id: string; version: string; ready: boolean; issues: string[] }
@@ -210,6 +218,34 @@ export function getLogPage(source: string, level: LogLevel, cursor?: string, lim
   const params = new URLSearchParams({ source, level, limit: String(Math.max(1, Math.min(200, Math.floor(limit)))) });
   if (cursor) params.set('cursor', cursor);
   return request(`/logs?${params.toString()}`);
+}
+/** Request the opt-in P07 view; an older IsOS may still return the legacy shape. */
+export async function getCurrentLogPage(query: CurrentLogQuery): Promise<CurrentLogPage | LogPage> {
+  const { source, level, node_path, correlation_id, cursor, limit = 100 } = query;
+  const params = new URLSearchParams({ view: 'current', source, level, limit: String(Math.max(1, Math.min(200, Math.floor(limit)))) });
+  if (node_path) params.set('node_path', node_path);
+  if (correlation_id) params.set('correlation_id', correlation_id);
+  if (cursor) params.set('cursor', cursor);
+  const page = await request<unknown>(`/logs?${params.toString()}`);
+  if (isCurrentLogPage(page)) return page;
+  if (isObject(page) && Array.isArray(page.lines) && page.lines.every(isLogLine) && (typeof page.next_cursor === 'string' || page.next_cursor === null) && typeof page.rotated === 'boolean' && !('scope' in page)) return page as unknown as LogPage;
+  throw new Error('IsOS returned an invalid current log page.');
+}
+function isLogLine(value: unknown): value is LogLine {
+  return isObject(value) && typeof value.timestamp === 'string' && typeof value.level === 'string' && typeof value.source === 'string' && typeof value.message === 'string';
+}
+export function isCurrentLogPage(page: unknown): page is CurrentLogPage {
+  if (!isObject(page) || !isObject(page.scope) || !isObject(page.anchor) || !Array.isArray(page.lines) || !Array.isArray(page.diagnostics)) return false;
+  const scope = page.scope;
+  const anchor = page.anchor;
+  if (!['manager_session', 'deployment_run'].includes(String(scope.kind)) || typeof scope.run_id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(scope.run_id) || (scope.active_revision !== null && typeof scope.active_revision !== 'string')) return false;
+  if (!['first_prelaunch_failure', 'first_ready_or_failure'].includes(String(anchor.kind)) || !['pending', 'found', 'unavailable'].includes(String(anchor.state))) return false;
+  if ((anchor.state === 'found') !== (isLogLine(anchor.event) && anchor.event.run_id === scope.run_id)) return false;
+  if (anchor.state !== 'found' && anchor.event !== null) return false;
+  if (!page.lines.every((line: unknown) => isLogLine(line) && line.run_id === scope.run_id)) return false;
+  if (typeof page.next_cursor !== 'string' || page.next_cursor.length > 512 || !/^[\x21-\x7E]*$/.test(page.next_cursor) || typeof page.rotated !== 'boolean') return false;
+  const codes = ['log_run_changed', 'log_cursor_expired', 'log_collector_gap', 'log_anchor_unavailable'];
+  return page.diagnostics.every((item: unknown) => isObject(item) && codes.includes(String(item.code)) && (item.count === null || (Number.isSafeInteger(item.count) && Number(item.count) >= 0)));
 }
 export function validateNodeGraph(graph: NodeGraph): Promise<NodeGraphValidation> {
   return request('/node-graph/validate', 'POST', { schema_version: 1, graph });
