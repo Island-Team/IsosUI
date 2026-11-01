@@ -1,8 +1,53 @@
 import { describe, expect, it, vi } from 'vitest';
-import { applyNodeGraph, controlProcesses, getCoreReadiness, previewBackendLink, getInstalledPackages, getLogPage, getNodeOptions, getNodeSets, installBackend, linkBackend, previewNodeSet, validateNodeGraph, type NodeGraph, type NodeSetDefinition } from './node-graph';
+import { applyNodeGraph, controlProcesses, getCoreReadiness, previewBackendLink, getInstalledPackages, getLogPage, getNodeOptions, getNodeSets, installBackend, linkBackend, nodeGraphReadOnlyReason, previewNodeSet, validateNodeGraph, type NodeGraph, type NodeSetDefinition, type NodeTypeDefinition } from './node-graph';
 import { request } from './api-client';
 
 vi.mock('./api-client', () => ({ request: vi.fn() }));
+
+describe('graph reader compatibility', () => {
+  const knownType: NodeTypeDefinition = { id: 'eos.dispatcher.control@v1.0', core: 'eos', layer: 'dispatcher', group: 'control', kind: 'software', lifecycle: 'internal', capabilities: [], settings: [], inputs: [], outputs: [] };
+  const graph: NodeGraph = { version: '1.0.0', robot: { id: 'test', name: 'Test' }, cores: { eos: { layers: { dispatcher: { groups: { control: { nodes: { command: { id: 'command', node_type: knownType.id, label: 'Command', description: 'Admission', future_metadata: { retained: true } } } } } } } } }, future_graph_field: 'retained' };
+
+  it('uses the server read-only state and preserves additive fields', () => {
+    const document = { revision: 'saved', graph, read_only: true, diagnostics: [{ path: '/version', code: 'migration_required', message: 'Migrate this graph.' }] };
+    expect(nodeGraphReadOnlyReason(document, [knownType])).toBe('Migrate this graph.');
+    expect(JSON.parse(JSON.stringify(document.graph)).cores.eos.layers.dispatcher.groups.control.nodes.command.future_metadata).toEqual({ retained: true });
+  });
+
+  it('blocks unknown versions, unknown types, and missing catalog without server guidance', () => {
+    expect(nodeGraphReadOnlyReason({ revision: 'saved', graph: { ...graph, version: '2.0.0' } }, [knownType])).toContain('Unsupported graph version');
+    expect(nodeGraphReadOnlyReason({ revision: 'saved', graph: { ...graph, cores: { eos: { layers: { dispatcher: { groups: { control: { nodes: { command: { ...graph.cores.eos.layers.dispatcher.groups.control.nodes.command, node_type: 'eos.dispatcher.control@v2.0' } } } } } } } } } }, [knownType])).toContain('Unsupported node type');
+    expect(nodeGraphReadOnlyReason({ revision: 'saved', graph }, null)).toContain('catalog is unavailable');
+    expect(nodeGraphReadOnlyReason({ revision: 'saved', graph }, [knownType])).toBeNull();
+  });
+
+  it('keeps a future graph tree in raw inspection when its shape is unknown', () => {
+    const future = { version: '0.2.0', robot: { id: 'test', name: 'Test' }, domains: {} } as unknown as NodeGraph;
+    expect(nodeGraphReadOnlyReason({ revision: 'saved', graph: future }, [knownType])).toContain('structure cannot be edited');
+  });
+
+  it('blocks malformed inputs on a known graph before the UI renders a wire', () => {
+    const malformed = structuredClone(graph);
+    malformed.cores.eos.layers.dispatcher.groups.control.nodes.command.inputs = { command: null } as unknown as NonNullable<typeof malformed.cores.eos.layers.dispatcher.groups.control.nodes.command.inputs>;
+    expect(nodeGraphReadOnlyReason({ revision: 'saved', graph: malformed }, [knownType])).toContain('structure cannot be edited');
+  });
+
+  it('blocks malformed hardware metadata before the inspector or controls use it', () => {
+    const malformed = structuredClone(graph);
+    const node = malformed.cores.eos.layers.dispatcher.groups.control.nodes.command;
+    node.movement = { modes: [], limits: null } as unknown as NonNullable<typeof node.movement>;
+    expect(nodeGraphReadOnlyReason({ revision: 'saved', graph: malformed }, [knownType])).toContain('structure cannot be edited');
+    delete node.movement;
+    node.capabilities = {} as unknown as string[];
+    expect(nodeGraphReadOnlyReason({ revision: 'saved', graph: malformed }, [knownType])).toContain('structure cannot be edited');
+  });
+
+  it('blocks object-valued labels before React renders node cards', () => {
+    const malformed = structuredClone(graph);
+    malformed.cores.eos.layers.dispatcher.groups.control.nodes.command.label = { text: 'Command' } as unknown as string;
+    expect(nodeGraphReadOnlyReason({ revision: 'saved', graph: malformed }, [knownType])).toContain('structure cannot be edited');
+  });
+});
 
 describe('unified log API', () => {
   it('requests a specific source, minimum severity, and cursor', async () => {

@@ -2,7 +2,7 @@ import { canonicalNodePath } from './node-graph-edits';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { eosRequest, type EosControlReply, type EosDiscoveryNode } from '@/services/eos/control';
 import { VisionPanel } from './VisionPanel';
-import { getNodeGraph, getProcessStatus, type NodeGraphDocument, type NodeInstance, type ProcessStatus } from '@/services/isos/node-graph';
+import { getNodeGraph, getNodeTypes, getProcessStatus, nodeGraphHasEditableShape, nodeGraphReadOnlyReason, type NodeGraphDocument, type NodeInstance, type ProcessStatus } from '@/services/isos/node-graph';
 import type { Language } from '@/types';
 import { activeGraphIsCurrent, defaultMovement, discoveredHardware, eosControlNodes, eosGraphNodes, hardwareKind, monitorBadge, movementTypes, movementValid, visionRuntimeState, type AdapterStatus, type EosGraphNode, type Movement, type MovementType } from './eos-control-model';
 import './eos-workbench.scss';
@@ -148,6 +148,7 @@ function Observation({ kind, value }: { kind: string; value?: Record<string, unk
 export function EosWorkbench({ lang, onOpenGraph, graphDirty }: Props): React.ReactElement {
   const copy = COPY[lang];
   const [graphDoc, setGraphDoc] = useState<NodeGraphDocument | null>(null);
+  const [readOnlyReason, setReadOnlyReason] = useState<string | null>(null);
   const [status, setStatus] = useState<ProcessStatus | null>(null);
   const [discovery, setDiscovery] = useState<EosDiscoveryNode[]>([]);
   const [readings, setReadings] = useState<Record<string, Reading>>({});
@@ -155,16 +156,17 @@ export function EosWorkbench({ lang, onOpenGraph, graphDirty }: Props): React.Re
   const [clock, setClock] = useState(Date.now());
   const refresh = useCallback(async (): Promise<void> => {
     try {
-      const [graph, process] = await Promise.all([getNodeGraph(), getProcessStatus()]);
-      setGraphDoc((current) => current?.revision === graph.revision ? current : graph); setStatus(process); setError('');
-      if (activeGraphIsCurrent(graph.revision, process.active_revision)) {
+      const [graph, catalog, process] = await Promise.all([getNodeGraph(), getNodeTypes().catch(() => null), getProcessStatus()]);
+      setReadOnlyReason(nodeGraphReadOnlyReason(graph, catalog?.types || null));
+      setGraphDoc((current) => nodeGraphHasEditableShape(graph.graph) ? current?.revision === graph.revision ? current : graph : null); setStatus(process); setError('');
+      if (!nodeGraphReadOnlyReason(graph, catalog?.types || null) && activeGraphIsCurrent(graph.revision, process.active_revision)) {
         const found = await eosRequest<EosControlReply & { nodes: EosDiscoveryNode[] }>({ op: 'discover' });
         setDiscovery(found.nodes);
       } else { setDiscovery([]); setReadings({}); }
-    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); setDiscovery([]); }
+    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); setReadOnlyReason('Graph compatibility could not be checked.'); setDiscovery([]); }
   }, []);
   useEffect(() => { void refresh(); const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refresh(); }, 5000); return () => window.clearInterval(timer); }, [refresh]);
-  const active = Boolean(graphDoc && activeGraphIsCurrent(graphDoc.revision, status?.active_revision) && status?.state === 'running' && !graphDirty);
+  const active = Boolean(graphDoc && !readOnlyReason && activeGraphIsCurrent(graphDoc.revision, status?.active_revision) && status?.state === 'running' && !graphDirty);
   const { active: visionActive, graph: visionGraph } = visionRuntimeState(graphDoc, status);
   const nodes = useMemo(() => graphDoc ? eosGraphNodes(graphDoc.graph) : [], [graphDoc]);
   const controls = useMemo(() => graphDoc ? eosControlNodes(graphDoc.graph) : [], [graphDoc]);
@@ -206,6 +208,7 @@ export function EosWorkbench({ lang, onOpenGraph, graphDirty }: Props): React.Re
     <nav className="eos-workbench__section-nav" aria-label={lang === 'cn' ? 'EOS 面板' : 'EOS sections'}><a href="#eos-controls">{copy.controls}</a><a href="#eos-monitor">{copy.monitor}</a><a href="#eos-vision">{lang === 'cn' ? '视觉' : 'Vision'}</a></nav>
     <div className="eos-workbench__revisions"><span>{copy.saved}: <code>{graphDoc?.revision || '—'}</code></span><span>{copy.active}: <code>{status?.active_revision || '—'}</code></span></div>
     {graphDirty && <p role="status" className="eos-control__warning">{copy.dirty}</p>}
+    {readOnlyReason && <p role="alert" className="eos-control__warning">{lang === 'cn' ? '只读节点图：' : 'Read-only graph: '}{readOnlyReason}</p>}
     {!active && <p role="status" className="eos-control__warning">{copy.off}</p>}
     {error && <p role="alert" className="eos-control__warning">{error}</p>}
     <section id="eos-controls" className="eos-workbench__section"><h2>{copy.controls}</h2>{controls.length ? <div className="eos-workbench__controls">{controls.map((entry) => entry.node.node_type === 'eos.control.skill@v1.0'
