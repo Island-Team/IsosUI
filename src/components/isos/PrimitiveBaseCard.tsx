@@ -99,7 +99,7 @@ export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, readin
     finally { if (controller.current === abort) controller.current = null; }
   };
   const stop = async (): Promise<void> => {
-    cancel(); if (recordRef.current && recordRef.current.phase !== 'terminal') update({ ...recordRef.current, phase: 'paused' });
+    cancel(); if (recordRef.current && recordRef.current.phase !== 'terminal' && recordRef.current.phase !== 'unavailable') update({ ...recordRef.current, phase: 'paused' });
     setStopping(true); setStopResult(c.stopping);
     try { const result = await controlProcesses('stop'); onStop(result); setStopResult(`${result.state || 'unknown'}${result.last_error ? `: ${result.last_error}` : ''}`);
       const current = recordRef.current;

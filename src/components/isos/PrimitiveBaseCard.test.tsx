@@ -133,6 +133,33 @@ it('marks a terminal owner result unavailable after run rotation and permits a f
   await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals();
 });
 
+it('keeps a sealed terminal old-run result sealed when Stop is clicked afterward', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  statusState = { ...process, active_revision: revision }; statusRead = async () => statusState;
+  let commandId = '';
+  vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+    const body = JSON.parse(init.body as string) as { op: string; header?: { command_id: string } };
+    if (body.op === 'time') return response({ ok: true, monotonic_ns: 1_000_000_000 });
+    commandId = body.header!.command_id;
+    return response({ ok: true, result: { command_id: commandId, status: 'OutcomeUnknown', reason: 'release uncertain' } });
+  }));
+  const container = document.createElement('div'); document.body.appendChild(container); const root = createRoot(container);
+  const { PrimitiveBaseCard } = await import('./PrimitiveBaseCard');
+  const render = () => <PrimitiveBaseCard lang="en" graph={graph} status={statusState} dirty={false} readOnly={false} readings={ready()} clock={Date.now()} onStop={() => undefined} onOpenLogs={() => undefined} />;
+  await act(async () => root.render(render()));
+  await act(async () => [...container.querySelectorAll('button')].find((button) => button.textContent === 'Invoke')!.click());
+  statusState = { ...statusState, run_id: 'run-b' };
+  await act(async () => root.render(render()));
+  expect(container.textContent).toContain('Unavailable for this run');
+  await act(async () => [...container.querySelectorAll('button')].find((button) => button.textContent === 'Stop deployment')!.click());
+  expect(container.textContent).toContain(commandId);
+  expect(container.textContent).toContain('Owner status: OutcomeUnknown');
+  expect(container.textContent).toContain('Unavailable for this run');
+  expect(container.textContent).not.toContain('automatic reads paused');
+  expect([...container.querySelectorAll('button')].find((button) => button.textContent === 'Refresh result')).toBeUndefined();
+  await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals();
+});
+
 it('seals an InProgress record on Stop and ignores its late result read', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   statusState = { ...process, active_revision: revision }; statusRead = async () => statusState;
