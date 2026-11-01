@@ -109,6 +109,7 @@
 .react-flow__edge.node-graph-edge-frequency--medium .react-flow__edge-path { stroke-dasharray: 3 5; }
 .react-flow__edge.node-graph-edge-frequency--high .react-flow__edge-path { stroke-dasharray: 10 3; }
 .react-flow__edge.node-graph-edge-frequency--solid .react-flow__edge-path { stroke-dasharray: none; }
+.react-flow__edge.node-graph-edge--invalid .react-flow__edge-path { stroke: var(--error); stroke-width: 3; }
 .react-flow__edge.animated .react-flow__edge-path { animation: none; }
 // Keep wire metadata available to assistive technology and the inspector while reducing canvas clutter.
 .node-graph-canvas .react-flow__edge-textwrapper { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity $duration-fast ease, visibility $duration-fast ease; }
@@ -116,6 +117,7 @@
 .node-graph-canvas .react-flow__edge:focus .react-flow__edge-textwrapper,
 .node-graph-canvas .react-flow__edge:focus-visible .react-flow__edge-textwrapper,
 .node-graph-canvas .react-flow__edge.selected .react-flow__edge-textwrapper { opacity: 1; visibility: visible; }
+.node-graph-canvas .react-flow__edge.node-graph-edge--invalid .react-flow__edge-textwrapper { opacity: 1; visibility: visible; }
 .node-graph-canvas .react-flow__edge:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
 .node-graph-card--mirrored .node-graph-card__ports { flex-direction: row-reverse; }
 .node-graph-card--mirrored .node-graph-card__port { text-align: right; }
