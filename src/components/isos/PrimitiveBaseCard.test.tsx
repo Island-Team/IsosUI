@@ -98,6 +98,73 @@ it('does not poll during sending or let a late send reply overwrite an old-run s
   await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals();
 });
 
+it('marks a terminal owner result unavailable after run rotation and permits a fresh command', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  statusState = { ...process, active_revision: revision }; statusRead = async () => statusState;
+  const sent: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+    const body = JSON.parse(init.body as string) as { op: string; header?: { command_id: string } };
+    if (body.op === 'time') return response({ ok: true, monotonic_ns: 1_000_000_000 });
+    if (body.op !== 'primitive_typed') throw new Error('terminal results must not be polled');
+    sent.push(body.header!.command_id);
+    return response({ ok: true, result: { command_id: body.header!.command_id, status: 'OutcomeUnknown', reason: 'journal uncertain' } });
+  }));
+  const container = document.createElement('div'); document.body.appendChild(container); const root = createRoot(container);
+  const { PrimitiveBaseCard } = await import('./PrimitiveBaseCard');
+  const render = (status: ProcessStatus | null = statusState) => <PrimitiveBaseCard lang="en" graph={graph} status={status} dirty={false} readOnly={false} readings={ready()} clock={Date.now()} onStop={() => undefined} onOpenLogs={() => undefined} />;
+  await act(async () => root.render(render()));
+  await act(async () => [...container.querySelectorAll('button')].find((button) => button.textContent === 'Invoke')!.click());
+  expect(container.textContent).toContain('Owner status: OutcomeUnknown');
+  expect(container.textContent).toContain(sent[0]);
+  await act(async () => root.render(render(null)));
+  expect(container.textContent).toContain('IsOS run identity unavailable.');
+  expect([...container.querySelectorAll('button')].find((button) => button.textContent === 'Refresh result')).toBeUndefined();
+  statusState = { ...statusState, run_id: 'run-b' };
+  await act(async () => root.render(render()));
+  expect(container.textContent).toContain('Owner status: OutcomeUnknown');
+  expect(container.textContent).toContain('Unavailable for this run');
+  expect(container.textContent).toContain(sent[0]);
+  expect([...container.querySelectorAll('button')].find((button) => button.textContent === 'Refresh result')).toBeUndefined();
+  await act(async () => [...container.querySelectorAll('button')].find((button) => button.textContent === 'Invoke')!.click());
+  expect(sent).toHaveLength(2);
+  expect(sent[1]).not.toBe(sent[0]);
+  expect(container.textContent).toContain(sent[1]);
+  expect(container.textContent).not.toContain(sent[0]);
+  await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals();
+});
+
+it('seals an InProgress record on Stop and ignores its late result read', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  statusState = { ...process, active_revision: revision }; statusRead = async () => statusState;
+  let resolveRead!: (value: ReturnType<typeof response>) => void;
+  const pendingRead = new Promise<ReturnType<typeof response>>((resolve) => { resolveRead = resolve; });
+  const sent: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+    const body = JSON.parse(init.body as string) as { op: string; header?: { command_id: string } };
+    if (body.op === 'time') return response({ ok: true, monotonic_ns: 1_000_000_000 });
+    if (body.op === 'primitive_typed') { sent.push(body.header!.command_id); return response({ ok: true, result: { command_id: body.header!.command_id, status: 'InProgress', reason: null } }); }
+    return pendingRead;
+  }));
+  const container = document.createElement('div'); document.body.appendChild(container); const root = createRoot(container);
+  const { PrimitiveBaseCard } = await import('./PrimitiveBaseCard');
+  const render = () => <PrimitiveBaseCard lang="en" graph={graph} status={statusState} dirty={false} readOnly={false} readings={ready()} clock={Date.now()} onStop={() => undefined} onOpenLogs={() => undefined} />;
+  await act(async () => root.render(render()));
+  await act(async () => [...container.querySelectorAll('button')].find((button) => button.textContent === 'Invoke')!.click());
+  expect(container.textContent).toContain('Owner status: InProgress');
+  await act(async () => [...container.querySelectorAll('button')].find((button) => button.textContent === 'Refresh result')!.click());
+  await act(async () => [...container.querySelectorAll('button')].find((button) => button.textContent === 'Stop deployment')!.click());
+  expect(container.textContent).toContain('Owner status: InProgress');
+  expect(container.textContent).toContain('Unavailable for this run');
+  expect(container.textContent).toContain(sent[0]);
+  await act(async () => resolveRead(response({ ok: true, result: { command_id: sent[0], status: 'Completed', reason: null } })));
+  expect(container.textContent).not.toContain('Owner status: Completed');
+  statusState = { ...statusState, run_id: 'run-b' };
+  await act(async () => root.render(render()));
+  expect(container.textContent).toContain('Unavailable for this run');
+  expect([...container.querySelectorAll('button')].find((button) => button.textContent === 'Invoke')!.disabled).toBe(false);
+  await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals();
+});
+
 it('reads after a lost send once at a time and rechecks IsOS after the read', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   statusState = { ...process, active_revision: revision }; statusRead = async () => statusState;

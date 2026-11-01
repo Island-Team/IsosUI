@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { Language } from '../../types';
 import { controlProcesses, getNodeGraph, getProcessStatus, type NodeGraphDocument, type ProcessStatus } from '../../services/isos/node-graph';
 import { eosMonotonicTime, resolveBaseBindings, sendFence, validBodyVelocity, sendPrimitiveBase, type BodyVelocity } from '../../services/eos/primitive-command';
-import { readPrimitiveResult, ResultClientError } from '../../services/eos/primitive-result';
+import { readPrimitiveResult, ResultClientError, terminalResult } from '../../services/eos/primitive-result';
 import { acceptPrimitiveResult, newPrimitiveRecord, pollAllowed, primitiveError, resultFence, type PrimitiveRecord } from './primitive-result-state';
 import { monitorBadge, type AdapterStatus } from './eos-control-model';
 
@@ -10,8 +10,8 @@ interface Reading { status?: AdapterStatus; statusAt?: number; health?: { state:
 interface Props { lang: Language; graph: NodeGraphDocument | null; status: ProcessStatus | null; dirty: boolean; readOnly: boolean;
   readings: Record<string, Reading>; clock: number; onStop: (status: ProcessStatus) => void; onOpenLogs: () => void }
 const copy = {
-  en: { title: 'Active base primitive', missing: 'No supported active base.velocity binding has one base target.', gated: 'Invoke requires a current managed run, ready mock target and valid limits. MuJoCo movement awaits R06.', invoke: 'Invoke', stop: 'Stop deployment', stopping: 'Stopping…', logs: 'Current run logs', refresh: 'Refresh result', command: 'Command ID', revision: 'Active revision', binding: 'Binding', target: 'Target', result: 'Owner status', sending: 'Sending (browser)', following: 'In progress', unavailable: 'Unavailable', paused: 'In progress; automatic reads paused', updated: 'Last update', stopStatus: 'IsOS stop status', lease: 'Lease', invalid: 'Enter values within the hardware limits.' },
-  cn: { title: '活动底盘原语', missing: '没有单一底盘目标的受支持活动 base.velocity 绑定。', gated: '调用需要当前受管运行、就绪的模拟目标和有效限值。MuJoCo 运动等待 R06。', invoke: '调用', stop: '停止部署', stopping: '正在停止…', logs: '当前运行日志', refresh: '刷新结果', command: '命令 ID', revision: '活动修订', binding: '绑定', target: '目标', result: '所有者状态', sending: '发送中（浏览器）', following: '执行中', unavailable: '不可用', paused: '仍在执行；自动读取已暂停', updated: '最近更新', stopStatus: 'IsOS 停止状态', lease: '有效期', invalid: '参数超出硬件限值。' },
+  en: { title: 'Active base primitive', missing: 'No supported active base.velocity binding has one base target.', gated: 'Invoke requires a current managed run, ready mock target and valid limits. MuJoCo movement awaits R06.', invoke: 'Invoke', stop: 'Stop deployment', stopping: 'Stopping…', logs: 'Current run logs', refresh: 'Refresh result', command: 'Command ID', revision: 'Active revision', binding: 'Binding', target: 'Target', result: 'Owner status', sending: 'Sending (browser)', following: 'In progress', unavailable: 'Unavailable', oldRun: 'Unavailable for this run', paused: 'In progress; automatic reads paused', updated: 'Last update', stopStatus: 'IsOS stop status', lease: 'Lease', invalid: 'Enter values within the hardware limits.' },
+  cn: { title: '活动底盘原语', missing: '没有单一底盘目标的受支持活动 base.velocity 绑定。', gated: '调用需要当前受管运行、就绪的模拟目标和有效限值。MuJoCo 运动等待 R06。', invoke: '调用', stop: '停止部署', stopping: '正在停止…', logs: '当前运行日志', refresh: '刷新结果', command: '命令 ID', revision: '活动修订', binding: '绑定', target: '目标', result: '所有者状态', sending: '发送中（浏览器）', following: '执行中', unavailable: '不可用', oldRun: '不适用于本次运行', paused: '仍在执行；自动读取已暂停', updated: '最近更新', stopStatus: 'IsOS 停止状态', lease: '有效期', invalid: '参数超出硬件限值。' },
 };
 function errorText(error: unknown): { kind: 'transport' | 'owner' | 'protocol' | 'validation'; message: string } {
   return error instanceof ResultClientError ? { kind: error.kind, message: error.message } : { kind: 'transport', message: 'Service unavailable.' };
@@ -33,17 +33,22 @@ export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, readin
   const recordRef = useRef<PrimitiveRecord | null>(null);
   const update = (next: PrimitiveRecord): void => { recordRef.current = next; setRecord(next); };
   const cancel = (): void => { generation.current += 1; controller.current?.abort(); controller.current = null; inFlight.current = null; };
+  const seal = (current: PrimitiveRecord, fence: 'old_run' | 'unavailable'): void => {
+    if (current.error?.kind === 'old_run') return;
+    cancel();
+    update(primitiveError(current, fence === 'old_run' ? 'old_run' : 'identity_unavailable', fence === 'old_run' ? 'Old deployment run or revision.' : 'IsOS run identity unavailable.'));
+  };
   useEffect(() => () => cancel(), []);
   useEffect(() => { cancel(); if (recordRef.current && recordRef.current.bindingPath !== binding?.path) update(primitiveError(recordRef.current, 'old_run', 'Binding selection changed.')); }, [binding?.path]);
-  useEffect(() => { const current = recordRef.current; if (!current || !status || current.phase === 'terminal') return;
-    const fence = resultFence(current, status);
-    if (fence !== 'current') { cancel(); update(primitiveError(current, fence === 'old_run' ? 'old_run' : 'identity_unavailable', fence === 'old_run' ? 'Old deployment run or revision.' : 'IsOS run identity unavailable.')); }
+  useEffect(() => { const current = recordRef.current; if (!current || current.error?.kind === 'old_run') return;
+    const fence = status ? resultFence(current, status) : 'unavailable';
+    if (fence !== 'current') seal(current, fence);
   }, [status?.run_id, status?.run_id_state, status?.saved_revision, status?.active_revision, status?.state]);
   const targetLive = binding && monitorBadge(readings[binding.targetPath], clock) === 'live';
   const canInvoke = Boolean(binding && targetLive && graph && sendFence(graph.revision, status, dirty, readOnly) && validBodyVelocity(value, binding.target) && record?.phase !== 'sending' && !stopping);
   const follow = async (manual = false): Promise<void> => {
     const current = recordRef.current;
-    if (!current || inFlight.current !== null || !current.submitAttempted || current.phase === 'sending' || current.phase === 'terminal' || current.error?.kind === 'old_run' ||
+    if (!current || inFlight.current !== null || !current.submitAttempted || current.phase === 'sending' || current.phase === 'terminal' || (current.result && terminalResult(current.result.status)) || current.error?.kind === 'old_run' ||
       (!manual && !pollAllowed(current, Date.now(), document.visibilityState === 'visible', false))) return;
     const token = generation.current;
     inFlight.current = token;
@@ -96,7 +101,10 @@ export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, readin
   const stop = async (): Promise<void> => {
     cancel(); if (recordRef.current && recordRef.current.phase !== 'terminal') update({ ...recordRef.current, phase: 'paused' });
     setStopping(true); setStopResult(c.stopping);
-    try { const result = await controlProcesses('stop'); onStop(result); setStopResult(`${result.state || 'unknown'}${result.last_error ? `: ${result.last_error}` : ''}`); }
+    try { const result = await controlProcesses('stop'); onStop(result); setStopResult(`${result.state || 'unknown'}${result.last_error ? `: ${result.last_error}` : ''}`);
+      const current = recordRef.current;
+      if (current) { const fence = resultFence(current, result); if (fence !== 'current') seal(current, fence); }
+    }
     catch (error) { setStopResult(error instanceof Error ? error.message : String(error)); }
     finally { setStopping(false); }
   };
@@ -109,6 +117,6 @@ export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, readin
     {!canInvoke && <p role="status" className="eos-control__warning">{c.gated}</p>}
     <div className="eos-control__actions"><button type="button" className="eos-control__primary" disabled={!canInvoke} onClick={() => void invoke()}>{c.invoke}</button><button type="button" disabled={stopping} onClick={() => void stop()}>{stopping ? c.stopping : c.stop}</button><button type="button" onClick={onOpenLogs}>{c.logs}</button></div>
     {stopResult && <p role="status">{c.stopStatus}: {stopResult}</p>}
-    {record && <div className="eos-control__result" role={record.result?.status === 'Failed' || record.result?.status === 'Rejected' || record.phase === 'unavailable' ? 'alert' : 'status'}><p>{c.command}: <code>{record.commandId}</code></p><p>{c.binding}: <code>{record.bindingPath}</code></p><p>{c.revision}: <code>{record.activeRevision}</code></p><p>{c.result}: <strong>{record.result?.status || (record.phase === 'sending' ? c.sending : c.unavailable)}</strong>{record.result?.reason ? ` — ${record.result.reason}` : ''}</p>{record.phase === 'paused' && <p>{c.paused}</p>}{record.phase === 'unavailable' && record.result && <p>{c.unavailable}</p>}{record.error && <p>{record.error.message}</p>}<p>{c.updated}: {new Date(record.updatedAt).toLocaleTimeString()}</p>{record.submitAttempted && ['following', 'paused', 'unavailable'].includes(record.phase) && record.error?.kind !== 'old_run' && <button type="button" onClick={() => void follow(true)}>{c.refresh}</button>}</div>}
+    {record && <div className="eos-control__result" role={record.result?.status === 'Failed' || record.result?.status === 'Rejected' || record.phase === 'unavailable' ? 'alert' : 'status'}><p>{c.command}: <code>{record.commandId}</code></p><p>{c.binding}: <code>{record.bindingPath}</code></p><p>{c.revision}: <code>{record.activeRevision}</code></p><p>{c.result}: <strong>{record.result?.status || (record.phase === 'sending' ? c.sending : c.unavailable)}</strong>{record.result?.reason ? ` — ${record.result.reason}` : ''}</p>{record.phase === 'paused' && <p>{c.paused}</p>}{record.phase === 'unavailable' && record.result && <p>{record.error?.kind === 'old_run' ? c.oldRun : c.unavailable}</p>}{record.error && <p>{record.error.message}</p>}<p>{c.updated}: {new Date(record.updatedAt).toLocaleTimeString()}</p>{record.submitAttempted && ['following', 'paused', 'unavailable'].includes(record.phase) && !(record.result && terminalResult(record.result.status)) && record.error?.kind !== 'old_run' && <button type="button" onClick={() => void follow(true)}>{c.refresh}</button>}</div>}
   </article>;
 }
