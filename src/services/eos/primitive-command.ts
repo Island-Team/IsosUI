@@ -47,7 +47,8 @@ export function typedBaseRequest(binding: BaseBinding, activeRevision: string, c
     primitive_version: '1.0.0', source_path: binding.path, target_path: binding.targetPath, active_revision: activeRevision,
     command_id: commandId, sequence, deadline_monotonic_ns: eosTime + 4_000_000_000, payload_length_bytes: bytes, codec: 'json_v1' }, payload };
 }
-export async function sendPrimitiveBase(binding: BaseBinding, activeRevision: string, commandId: string, sequence: number, eosTime: number, payload: BodyVelocity, signal?: AbortSignal): Promise<DispatchResult> {
+export async function sendPrimitiveBase(binding: BaseBinding, activeRevision: string, commandId: string, sequence: number, eosTime: number, payload: BodyVelocity, signal?: AbortSignal, onAttempt?: () => void): Promise<DispatchResult> {
   const request = typedBaseRequest(binding, activeRevision, commandId, sequence, eosTime, payload);
+  onAttempt?.();
   return decodeDispatchResult(await publicControl(request, signal), commandId);
 }

@@ -16,15 +16,19 @@ describe('R07 command state', () => {
     expect(primitiveError(progress, 'transport', 'offline')).toMatchObject({ phase: 'unavailable', result: { status: 'InProgress' }, commandId: 'move-1' });
   });
   it('checks run and revision and bounds visible single-flight polling', () => {
-    const record = newPrimitiveRecord('run-a', revision, 'eos/dispatcher/base/velocity', 'move-1', 1, 1000);
+    const pending = newPrimitiveRecord('run-a', revision, 'eos/dispatcher/base/velocity', 'move-1', 1, 1000);
+    const record = acceptPrimitiveResult({ ...pending, submitAttempted: true }, { command_id: 'move-1', status: 'InProgress', reason: null }, 1000);
     expect(resultFence(record, status)).toBe('current');
     expect(resultFence(record, { ...status, run_id: 'run-b' })).toBe('old_run');
     expect(resultFence(record, { ...status, run_id_state: 'unavailable' })).toBe('unavailable');
     expect(resultFence(record, { ...status, active_revision: 'b'.repeat(64) })).toBe('old_run');
+    expect(resultFence(record, { ...status, saved_revision: 'b'.repeat(64) })).toBe('old_run');
+    expect(pollAllowed(pending, 2000, true, false)).toBe(false);
     expect(pollAllowed(record, 2000, true, false)).toBe(true);
     expect(pollAllowed(record, 2000, false, false)).toBe(false);
     expect(pollAllowed(record, 2000, true, true)).toBe(false);
     expect(pollAllowed({ ...record, attempts: 12 }, 2000, true, false)).toBe(false);
     expect(pollAllowed(record, 61_000, true, false)).toBe(false);
+    expect(pollAllowed(primitiveError(record, 'identity_unavailable', 'unknown'), 2000, true, false)).toBe(false);
   });
 });

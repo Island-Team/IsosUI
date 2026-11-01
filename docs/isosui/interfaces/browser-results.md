@@ -25,6 +25,8 @@ The minimal sender resolves a supported `eos.dispatcher.primitive_base@v0.1` `ba
 
 The public send contains exactly `op`, `header` and `payload`; the bridge adds the private grant after public checks. On a matching EOS `{"ok":true,"result":...}` response, use the same six-status decoder as the result reader. A missing/mismatched ID, unknown status or malformed response is a protocol error; a transport failure is submission outcome unavailable. The browser never retries a possibly accepted movement. This R07 form remains bound to a mock or R06-qualified target; U04 owns general base/arm control generation.
 
+The browser reports `payload_length_bytes` from `TextEncoder(JSON.stringify(payload))` in the public request. The EOS bridge validates the declared length and parsed payload bounds, then canonicalizes the length for its private `serde_json` runtime envelope. This preserves valid small SI values whose JavaScript and Rust compact number spellings differ.
+
 | Client field | JSON type / unit | Purpose, default and validation |
 | --- | --- | --- |
 | `op` | literal `result` / — | Required exact operation; no default. |

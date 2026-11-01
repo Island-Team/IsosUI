@@ -22,6 +22,9 @@ describe('R07 public typed boundary', () => {
     expect(sendFence(revision, { ...status, run_id_state: 'unavailable' }, false, false)).toBe(false);
     expect(validBodyVelocity({ ...payload, x_m_s: 5 }, binding.target)).toBe(false);
     expect(() => typedBaseRequest(binding, revision, 'move-1', 1, Number.MAX_SAFE_INTEGER, payload)).toThrow();
+    const small = { ...payload, x_m_s: 0.000001 };
+    const smallRequest = typedBaseRequest(binding, revision, 'move-small', 2, 1_000_000_000, small);
+    expect((smallRequest.header as { payload_length_bytes: number }).payload_length_bytes).toBe(new TextEncoder().encode(JSON.stringify(small)).length);
     const bases = graph.cores.eos.layers.hardware.groups.base.nodes;
     bases.other = { ...bases.drive, id: 'other' };
     expect(resolveBaseBindings(graph)).toHaveLength(0);

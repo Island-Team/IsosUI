@@ -18,43 +18,54 @@ function errorText(error: unknown): { kind: 'transport' | 'owner' | 'protocol' |
 }
 export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, readings, clock, onStop, onOpenLogs }: Props): React.ReactElement {
   const c = copy[lang];
-  const binding = graph ? resolveBaseBindings(graph.graph)[0] : undefined;
+  const binding = graph ? resolveBaseBindings(graph.graph).find((candidate) => candidate.target.adapter?.type === 'mock-cxx' &&
+    validBodyVelocity({ type: 'body_velocity', x_m_s: 0, y_m_s: 0, yaw_rad_s: 0, valid_for_ms: 1 }, candidate.target)) : undefined;
   const [value, setValue] = useState<BodyVelocity>({ type: 'body_velocity', x_m_s: 0, y_m_s: 0, yaw_rad_s: 0, valid_for_ms: 100 });
   const [record, setRecord] = useState<PrimitiveRecord | null>(null);
   const [stopResult, setStopResult] = useState('');
   const [stopping, setStopping] = useState(false);
   const generation = useRef(0);
+  const graphFlags = useRef({ dirty, readOnly });
+  graphFlags.current = { dirty, readOnly };
   const controller = useRef<AbortController | null>(null);
-  const busy = useRef(false);
+  const inFlight = useRef<number | null>(null);
   const sequence = useRef(0);
   const recordRef = useRef<PrimitiveRecord | null>(null);
   const update = (next: PrimitiveRecord): void => { recordRef.current = next; setRecord(next); };
-  const cancel = (): void => { generation.current += 1; controller.current?.abort(); controller.current = null; };
+  const cancel = (): void => { generation.current += 1; controller.current?.abort(); controller.current = null; inFlight.current = null; };
   useEffect(() => () => cancel(), []);
   useEffect(() => { cancel(); if (recordRef.current && recordRef.current.bindingPath !== binding?.path) update(primitiveError(recordRef.current, 'old_run', 'Binding selection changed.')); }, [binding?.path]);
-  useEffect(() => { const current = recordRef.current; if (current && status && resultFence(current, status) === 'old_run') { cancel(); update(primitiveError(current, 'old_run', 'Old deployment run or revision.')); } }, [status?.run_id, status?.active_revision, status?.state]);
+  useEffect(() => { const current = recordRef.current; if (!current || !status || current.phase === 'terminal') return;
+    const fence = resultFence(current, status);
+    if (fence !== 'current') { cancel(); update(primitiveError(current, fence === 'old_run' ? 'old_run' : 'identity_unavailable', fence === 'old_run' ? 'Old deployment run or revision.' : 'IsOS run identity unavailable.')); }
+  }, [status?.run_id, status?.run_id_state, status?.saved_revision, status?.active_revision, status?.state]);
   const targetLive = binding && monitorBadge(readings[binding.targetPath], clock) === 'live';
-  const qualified = binding?.target.adapter?.type === 'mock-cxx';
-  const canInvoke = Boolean(binding && qualified && targetLive && graph && sendFence(graph.revision, status, dirty, readOnly) && validBodyVelocity(value, binding.target) && record?.phase !== 'sending' && !stopping);
+  const canInvoke = Boolean(binding && targetLive && graph && sendFence(graph.revision, status, dirty, readOnly) && validBodyVelocity(value, binding.target) && record?.phase !== 'sending' && !stopping);
   const follow = async (manual = false): Promise<void> => {
     const current = recordRef.current;
-    if (!current || busy.current || current.phase === 'terminal' || (!manual && !pollAllowed(current, Date.now(), document.visibilityState === 'visible', false))) return;
-    busy.current = true;
+    if (!current || inFlight.current !== null || !current.submitAttempted || current.phase === 'sending' || current.phase === 'terminal' || current.error?.kind === 'old_run' ||
+      (!manual && !pollAllowed(current, Date.now(), document.visibilityState === 'visible', false))) return;
     const token = generation.current;
+    inFlight.current = token;
     const abort = new AbortController(); controller.current = abort;
     try {
       const fresh = await getProcessStatus(abort.signal);
       if (token !== generation.current || abort.signal.aborted) return;
       const fence = resultFence(current, fresh);
-      if (fence !== 'current') { update(primitiveError(current, fence === 'old_run' ? 'old_run' : 'transport', fence === 'old_run' ? 'Old deployment run or revision.' : 'IsOS run identity unavailable.')); return; }
+      if (fence !== 'current') { update(primitiveError(current, fence === 'old_run' ? 'old_run' : 'identity_unavailable', fence === 'old_run' ? 'Old deployment run or revision.' : 'IsOS run identity unavailable.')); return; }
       const result = await readPrimitiveResult(current.commandId, current.activeRevision, abort.signal);
-      if (token === generation.current && !abort.signal.aborted && recordRef.current?.commandId === current.commandId) update(acceptPrimitiveResult({ ...recordRef.current, attempts: recordRef.current.attempts + 1 }, result));
+      if (token !== generation.current || abort.signal.aborted || recordRef.current?.commandId !== current.commandId) return;
+      const afterRead = await getProcessStatus(abort.signal);
+      if (token !== generation.current || abort.signal.aborted || recordRef.current?.commandId !== current.commandId) return;
+      const afterFence = resultFence(current, afterRead);
+      if (afterFence !== 'current') { update(primitiveError(recordRef.current, afterFence === 'old_run' ? 'old_run' : 'identity_unavailable', afterFence === 'old_run' ? 'Old deployment run or revision.' : 'IsOS run identity unavailable.')); return; }
+      update(acceptPrimitiveResult({ ...recordRef.current, attempts: recordRef.current.attempts + 1 }, result));
     } catch (error) {
       if (token === generation.current && !abort.signal.aborted && recordRef.current?.commandId === current.commandId) { const safe = errorText(error); update(primitiveError({ ...recordRef.current, attempts: recordRef.current.attempts + 1 }, safe.kind, safe.message)); }
-    } finally { busy.current = false; if (controller.current === abort) controller.current = null; }
+    } finally { if (inFlight.current === token) inFlight.current = null; if (controller.current === abort) controller.current = null; }
   };
   useEffect(() => {
-    if (!record || record.phase === 'terminal' || record.phase === 'paused') return;
+    if (!record || record.phase === 'sending' || record.phase === 'terminal' || record.phase === 'paused' || record.error?.kind === 'old_run' || record.error?.kind === 'identity_unavailable' || !record.submitAttempted) return;
     if (record.attempts >= 12 || Date.now() - record.startedAt >= 60_000) { update({ ...record, phase: 'paused' }); return; }
     const delay = record.phase === 'unavailable' ? Math.min(10_000, 1000 * 2 ** Math.min(record.attempts, 4)) : 1000;
     const timer = window.setTimeout(() => { if (document.visibilityState === 'visible') void follow(); }, delay);
@@ -70,14 +81,16 @@ export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, readin
     update(fresh);
     try {
       const [saved, process] = await Promise.all([getNodeGraph(), getProcessStatus(abort.signal)]);
-      if (token !== generation.current || !sendFence(saved.revision, process, dirty, readOnly) || saved.revision !== fresh.activeRevision || !resolveBaseBindings(saved.graph).some((candidate) => candidate.path === binding.path && candidate.targetPath === binding.targetPath)) throw new ResultClientError('validation', 'Active graph or run changed.');
+      if (token !== generation.current || !sendFence(saved.revision, process, graphFlags.current.dirty, graphFlags.current.readOnly) || saved.revision !== fresh.activeRevision || !resolveBaseBindings(saved.graph).some((candidate) => candidate.path === binding.path && candidate.targetPath === binding.targetPath)) throw new ResultClientError('validation', 'Active graph or run changed.');
       const eosTime = await eosMonotonicTime(abort.signal);
       const beforeSend = await getProcessStatus(abort.signal);
-      if (token !== generation.current || resultFence(fresh, beforeSend) !== 'current') throw new ResultClientError('validation', 'Active run changed before send.');
+      if (token !== generation.current || graphFlags.current.dirty || graphFlags.current.readOnly || resultFence(fresh, beforeSend) !== 'current') throw new ResultClientError('validation', 'Active run changed before send.');
       sequence.current += 1;
-      const result = await sendPrimitiveBase(binding, fresh.activeRevision, commandId, sequence.current, eosTime, value, abort.signal);
-      if (token === generation.current && !abort.signal.aborted) update(acceptPrimitiveResult(fresh, result));
-    } catch (error) { if (token === generation.current && !abort.signal.aborted) { const safe = errorText(error); update(primitiveError(fresh, safe.kind, safe.message)); } }
+      const result = await sendPrimitiveBase(binding, fresh.activeRevision, commandId, sequence.current, eosTime, value, abort.signal,
+        () => update({ ...fresh, submitAttempted: true }));
+      const current = recordRef.current;
+      if (token === generation.current && !abort.signal.aborted && current?.commandId === commandId && current.phase === 'sending') update(acceptPrimitiveResult(current, result));
+    } catch (error) { const current = recordRef.current; if (token === generation.current && !abort.signal.aborted && current?.commandId === commandId && current.phase === 'sending') { const safe = errorText(error); update(primitiveError(current, safe.kind, safe.message)); } }
     finally { if (controller.current === abort) controller.current = null; }
   };
   const stop = async (): Promise<void> => {
@@ -96,6 +109,6 @@ export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, readin
     {!canInvoke && <p role="status" className="eos-control__warning">{c.gated}</p>}
     <div className="eos-control__actions"><button type="button" className="eos-control__primary" disabled={!canInvoke} onClick={() => void invoke()}>{c.invoke}</button><button type="button" disabled={stopping} onClick={() => void stop()}>{stopping ? c.stopping : c.stop}</button><button type="button" onClick={onOpenLogs}>{c.logs}</button></div>
     {stopResult && <p role="status">{c.stopStatus}: {stopResult}</p>}
-    {record && <div className="eos-control__result" role={record.result?.status === 'Failed' || record.result?.status === 'Rejected' || record.phase === 'unavailable' ? 'alert' : 'status'}><p>{c.command}: <code>{record.commandId}</code></p><p>{c.revision}: <code>{record.activeRevision}</code></p><p>{c.result}: <strong>{record.result?.status || (record.phase === 'sending' ? c.sending : record.phase === 'paused' ? c.paused : c.unavailable)}</strong>{record.result?.reason ? ` — ${record.result.reason}` : ''}</p>{record.error && <p>{record.error.message}</p>}<p>{c.updated}: {new Date(record.updatedAt).toLocaleTimeString()}</p>{['following', 'paused', 'unavailable'].includes(record.phase) && <button type="button" onClick={() => void follow(true)}>{c.refresh}</button>}</div>}
+    {record && <div className="eos-control__result" role={record.result?.status === 'Failed' || record.result?.status === 'Rejected' || record.phase === 'unavailable' ? 'alert' : 'status'}><p>{c.command}: <code>{record.commandId}</code></p><p>{c.binding}: <code>{record.bindingPath}</code></p><p>{c.revision}: <code>{record.activeRevision}</code></p><p>{c.result}: <strong>{record.result?.status || (record.phase === 'sending' ? c.sending : c.unavailable)}</strong>{record.result?.reason ? ` — ${record.result.reason}` : ''}</p>{record.phase === 'paused' && <p>{c.paused}</p>}{record.phase === 'unavailable' && record.result && <p>{c.unavailable}</p>}{record.error && <p>{record.error.message}</p>}<p>{c.updated}: {new Date(record.updatedAt).toLocaleTimeString()}</p>{record.submitAttempted && ['following', 'paused', 'unavailable'].includes(record.phase) && record.error?.kind !== 'old_run' && <button type="button" onClick={() => void follow(true)}>{c.refresh}</button>}</div>}
   </article>;
 }
