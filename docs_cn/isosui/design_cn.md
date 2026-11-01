@@ -8,7 +8,7 @@
 
 IsOS 拥有已保存图、类型目录、包收据、`/api/isos/v1/node-options`、验证、修订、Apply、管理器状态与统一日志游标。EOS 拥有实时适配器状态、观察、控制与准入。EGIA 拥有代理阶段状态。IsosUI 只保存图草稿、服务器修订、临时选项结果和浏览器本地面板布局。不能从草稿推断已验证包路径、命令权限或实时状态。所有者契约见 IsOS 的 `interfaces/node-graph.md`、`interfaces/releases.md` 和 EOS 的 `interfaces/hardware.md`、`interfaces/control.md`；本页只定义 UI 呈现。
 
-目标 UI 状态为 `{saved_revision, draft, validation, active_revision, catalog, options, readiness, panels}`。编辑更新草稿并使验证结果过期。`Check graph` 请求 IsOS 验证但不写入。`Apply` 发送精确的已保存修订与草稿；冲突时保留本地草稿并展示服务器修订，让操作员明确协调。编辑器可在内存中规范化旧图，但显式 Apply 前不改写已存字节。未知未来图版本只读并报版本错误。UI 版本 `0.1.0` 不代表图 `1.0.0` 已稳定。
+目标 UI 状态为 `{saved_revision, draft, validation, active_revision, catalog, options, readiness, panels}`。编辑更新草稿并使验证结果过期。`Check graph` 请求 IsOS 验证但不写入。`Apply` 发送精确的已保存修订与草稿；冲突时保留本地草稿并展示服务器修订，让操作员明确协调。编辑器保留未编辑的附加字段，不会仅因显示节点图就改写已存字节。IsOS 图响应新增的 `read_only` 和 `diagnostics` 字段为准：只读时禁用编辑、验证、Apply、场景更改、节点集预览、Run、Restart 和 EOS 控制提交，但仍可检查、刷新、查看日志和紧急 Stop。旧版 IsOS 未返回 `read_only` 时，未知图版本或目录中缺少的节点类型也强制只读，并显示版本或类型诊断。保存图的修订与 EOS 活动修订不一致时，不能把它当作活动控制绑定。UI 版本 `0.1.0` 不代表图 `1.0.0` 已稳定。
 
 ## 类型驱动配置与选择器
 
@@ -39,3 +39,7 @@ Home、Graph、配置属于**工作页面**：紧凑对齐、方便扫读、有�
 ## 首次使用的可观测性算法
 
 打开 Home 时获取设置、包收据、保存/活动修订、进程就绪和全部来源日志第一页。先从管理器响应确定当前运行，再显示最早的就绪或失败事件，之后才使用高级筛选。IsOS 提供时，日志行呈现时间、级别、来源、核心、可选 `node_path`、`event_code`、`run_id`、可选 `correlation_id` 和消息。浏览器错误标记 `browser`，不能冒充服务器来源。游标轮询从最后游标继续，识别轮转并展示新运行边界，不把不同日志流连在一起。首次使用指南按包→图→Apply→就绪→控制→日志→停止的顺序教学。
+
+## M1 读取兼容性验证
+
+2026-11-01 在 IsosUI 仓库使用 Node 22.23.4 和 npm 10.9.9 运行 `npm test`，17 个文件中的 62 项测试全部通过；`npm run build` 通过 TypeScript 检查、本地和托管生产构建以及产物验证。完整输出保存在 `logs/test/20261101-g05-reader-compat/test.log` 和 `build.log`。新增测试覆盖服务端只读提示、未知版本及类型、目录不可用和附加节点图字段保留。UI 仍依赖 IsOS 拒绝不安全的 Apply 请求；这里的控件防止不受支持的节点图提供本地编辑和启动操作。

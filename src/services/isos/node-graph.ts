@@ -18,7 +18,7 @@ export interface PortDefinition { name: string; data_type: string; required: boo
 export interface DataSchema { title?: string; description?: string; type?: string; properties?: Record<string, { type?: string; description?: string; 'x-unit'?: string; minimum?: number; maximum?: number }>; required?: string[]; [key: string]: unknown }
 export interface DataTypeDefinition { id: string; version: string; purpose: string; media_type: string; codec: string; schema: DataSchema; max_payload_bytes: number }
 
-export interface NodeSource { node: string; output: string }
+export interface NodeSource { node: string; output: string; priority?: number; frequency_hz?: number; [key: string]: unknown }
 export interface NodeInstance {
   id: string;
   node_type: string;
@@ -35,13 +35,15 @@ export interface NodeInstance {
   health_timing?: { poll_interval_ms: number; stale_after_ms: number };
   observation?: { max_rate_hz: number; max_payload_bytes: number };
   movement?: { modes: string[]; limits: Record<string, number> };
+  [key: string]: unknown;
 }
 export interface NodeGraph {
-  version: '1.0.0';
+  version: string;
   robot: { id: string; name: string };
   cores: Record<string, { layers: Record<string, { groups: Record<string, { nodes: Record<string, NodeInstance> }> }> }>;
+  [key: string]: unknown;
 }
-export interface NodeGraphDocument { revision: string; graph: NodeGraph }
+export interface NodeGraphDocument { revision: string; graph: NodeGraph; read_only?: boolean; diagnostics?: NodeGraphDiagnostic[] }
 export interface NodeGraphDiagnostic { path: string; code?: string; message: string }
 export interface NodeGraphValidation { valid: boolean; diagnostics: NodeGraphDiagnostic[] }
 export interface ProcessStatus {
@@ -74,8 +76,74 @@ export interface HardwareTargetOption { path: string; node_type: string; device_
 export interface NodeOptions { adapter_families: AdapterFamilyOption[]; primitive_bindings: PrimitiveBindingOption[]; targets: HardwareTargetOption[] }
 export interface PrimitiveSpec { name: string; version: string; device_class: string; movement_type: string; description: string }
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isNodeSource(value: unknown): value is NodeSource {
+  return isObject(value) && typeof value.node === 'string' && typeof value.output === 'string';
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
+/** A future graph may use a different tree; retain it for raw inspection. */
+export function nodeGraphHasEditableShape(graph: unknown): graph is NodeGraph {
+  if (!isObject(graph) || typeof graph.version !== 'string' || !isObject(graph.robot) || typeof graph.robot.id !== 'string' || typeof graph.robot.name !== 'string' || !isObject(graph.cores)) return false;
+  for (const core of Object.values(graph.cores)) {
+    if (!isObject(core) || !isObject(core.layers)) return false;
+    for (const layer of Object.values(core.layers)) {
+      if (!isObject(layer) || !isObject(layer.groups)) return false;
+      for (const group of Object.values(layer.groups)) {
+        if (!isObject(group) || !isObject(group.nodes)) return false;
+        for (const node of Object.values(group.nodes)) {
+          if (!isObject(node) || typeof node.id !== 'string' || typeof node.node_type !== 'string') return false;
+          if (node.label !== undefined && typeof node.label !== 'string') return false;
+          if (node.description !== undefined && typeof node.description !== 'string') return false;
+          if (node.inputs !== undefined) {
+            if (!isObject(node.inputs)) return false;
+            for (const sources of Object.values(node.inputs)) {
+              if (Array.isArray(sources) ? !sources.every(isNodeSource) : !isNodeSource(sources)) return false;
+            }
+          }
+          if (node.settings !== undefined && !isObject(node.settings)) return false;
+          if (node.package !== undefined && (!isObject(node.package) || typeof node.package.id !== 'string' || typeof node.package.version !== 'string')) return false;
+          if (node.capabilities !== undefined && !isStringArray(node.capabilities)) return false;
+          if (node.references !== undefined && !isStringArray(node.references)) return false;
+          if (node.joint_names !== undefined && !isStringArray(node.joint_names)) return false;
+          if (node.adapter !== undefined && (!isObject(node.adapter) || typeof node.adapter.type !== 'string' || (node.adapter.settings !== undefined && !isObject(node.adapter.settings)))) return false;
+          if (node.health_timing !== undefined && (!isObject(node.health_timing) || typeof node.health_timing.poll_interval_ms !== 'number' || typeof node.health_timing.stale_after_ms !== 'number')) return false;
+          if (node.observation !== undefined && (!isObject(node.observation) || typeof node.observation.max_rate_hz !== 'number' || typeof node.observation.max_payload_bytes !== 'number')) return false;
+          if (node.movement !== undefined && (!isObject(node.movement) || !isStringArray(node.movement.modes) || !isObject(node.movement.limits) || Object.values(node.movement.limits).some((limit) => typeof limit !== 'number' || !Number.isFinite(limit)))) return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+/** Fail closed when the server or local catalog cannot establish graph compatibility. */
+export function nodeGraphReadOnlyReason(document: NodeGraphDocument, types: NodeTypeDefinition[] | null): string | null {
+  if (document.read_only) return document.diagnostics?.map((issue) => issue.message).join('; ') || 'IsOS opened this graph read-only.';
+  if (!nodeGraphHasEditableShape(document.graph)) return 'This graph structure cannot be edited by this IsosUI build.';
+  if (document.graph.version !== '1.0.0' && document.graph.version !== '0.1.0') return `Unsupported graph version ${document.graph.version}.`;
+  if (!types) return 'Node type catalog is unavailable.';
+  const known = new Set(types.map((type) => type.id));
+  for (const [coreId, core] of Object.entries(document.graph.cores)) {
+    for (const [layerId, layer] of Object.entries(core.layers)) {
+      for (const [groupId, group] of Object.entries(layer.groups)) {
+        for (const [nodeId, node] of Object.entries(group.nodes)) {
+          if (!known.has(node.node_type)) return `Unsupported node type ${node.node_type} at ${coreId}/${layerId}/${groupId}/${nodeId}.`;
+        }
+      }
+    }
+  }
+  return null;
+}
+
 export function backendPackagePin(node: NodeInstance): { id: string; version: string } | null {
-  if (node.node_type === 'eos.process.mujoco@v1.0' && node.package) return node.package;
+  if ((node.node_type === 'eos.process.mujoco@v1.0' || node.node_type === 'eos.process.mujoco@v0.1') && node.package) return node.package;
   if (node.node_type === 'eos.process.backend@v1.0' && typeof node.settings?.package === 'string' && typeof node.settings?.version === 'string') {
     return { id: node.settings.package, version: node.settings.version };
   }
