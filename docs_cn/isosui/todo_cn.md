@@ -1,5 +1,7 @@
 # 0.x UI 目标实现 TODO
 
+本队列对应 [IsosUI 0.1.0 实现](https://github.com/Island-Team/IsosUI/milestone/1) 和共享的 [M4 智能体与工作台关卡](https://github.com/Island-Team/Island-eos/milestone/4)。按依赖顺序完成下列步骤；首次使用时每一步先显示实时状态，再显示本次运行的因果日志。
+
 [English](../../docs/isosui/todo.md) · [设计](design_cn.md)
 
 1. 更新 API 适配层以读取多版本图及 IsOS 节点/类型/选项契约。保留未知兼容字段和旧来源引用。连接、目录版本与 UI 发布版本分别管理。

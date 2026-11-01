@@ -1,5 +1,7 @@
 # Implementation TODO for the 0.x UI target
 
+This queue tracks [IsosUI 0.1.0 implementation](https://github.com/Island-Team/IsosUI/milestone/1) and the shared [M4 agent and workbench gate](https://github.com/Island-Team/Island-eos/milestone/4). Complete the numbered steps in dependency order; each first-use step must show status before the current run's causal logs.
+
 [中文](../../docs_cn/isosui/todo_cn.md) · [Design](design.md)
 
 1. Update the API adapter for version-aware graph reads and the IsOS node/type/option contracts. Preserve unknown compatible fields and legacy source references. Keep wire and catalog versions independent of the UI release version.
