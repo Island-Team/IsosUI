@@ -17,13 +17,14 @@ function diagnosticCode(data: unknown): string | undefined {
   return first && typeof first === 'object' && 'code' in first && typeof first.code === 'string' ? first.code : undefined;
 }
 
-export async function request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+export async function request<T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
   let response: Response;
   try {
     const options: LoopbackRequestInit = {
       method,
       credentials: 'omit',
       cache: 'no-store',
+      signal,
       headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       // Chrome uses this hint for HTTPS-to-HTTP loopback permission and address verification.

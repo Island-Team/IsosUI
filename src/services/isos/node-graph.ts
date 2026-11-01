@@ -197,7 +197,7 @@ export function getInstalledPackages(): Promise<{ installed: InstalledPackage[] 
 export function previewNodeSet(set: NodeSetDefinition, graph: NodeGraph, values: Record<string, string>): Promise<NodeSetPreview> {
   return request('/node-sets/preview', 'POST', { package: set.package, set_id: set.id, graph, values });
 }
-export function getProcessStatus(): Promise<ProcessStatus> { return request('/process-status'); }
+export function getProcessStatus(signal?: AbortSignal): Promise<ProcessStatus> { return request('/process-status', 'GET', undefined, signal); }
 export function getBackends(): Promise<{ backends: BackendPackage[] }> { return request('/backends'); }
 export function installBackend(id: string, version: string): Promise<unknown> {
   return request('/packages/install', 'POST', { id, version });
@@ -220,13 +220,13 @@ export function getLogPage(source: string, level: LogLevel, cursor?: string, lim
   return request(`/logs?${params.toString()}`);
 }
 /** Request the opt-in P07 view; an older IsOS may still return the legacy shape. */
-export async function getCurrentLogPage(query: CurrentLogQuery): Promise<CurrentLogPage | LogPage> {
+export async function getCurrentLogPage(query: CurrentLogQuery, signal?: AbortSignal): Promise<CurrentLogPage | LogPage> {
   const { source, level, node_path, correlation_id, cursor, limit = 100 } = query;
   const params = new URLSearchParams({ view: 'current', source, level, limit: String(Math.max(1, Math.min(200, Math.floor(limit)))) });
   if (node_path) params.set('node_path', node_path);
   if (correlation_id) params.set('correlation_id', correlation_id);
   if (cursor) params.set('cursor', cursor);
-  const page = await request<unknown>(`/logs?${params.toString()}`);
+  const page = await request<unknown>(`/logs?${params.toString()}`, 'GET', undefined, signal);
   if (isCurrentLogPage(page)) return page;
   if (isObject(page) && Array.isArray(page.lines) && page.lines.every(isLogLine) && (typeof page.next_cursor === 'string' || page.next_cursor === null) && typeof page.rotated === 'boolean' && !('scope' in page)) return page as unknown as LogPage;
   throw new Error('IsOS returned an invalid current log page.');

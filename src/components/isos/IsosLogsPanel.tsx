@@ -7,7 +7,7 @@ import { IsosApiError } from '../../services/isos/api-client';
 import type { Language } from '@/types';
 import { getBrowserLogs, subscribeBrowserLogs } from '../../services/isos/browser-logs';
 import {
-  acceptCurrentLogPage, emptyCurrentLogState, resetCurrentLogDetails,
+  acceptCurrentLogPage, acknowledgeCurrentLogDiagnostics, emptyCurrentLogState, resetCurrentLogDetails,
   validCorrelationFilter, validNodeFilter,
 } from './log-cursor-state';
 import './isos-logs-panel.scss';
@@ -47,12 +47,15 @@ export function IsosLogsPanel({ lang, onClose, initialSource = 'all', sources = 
   const [legacyLines, setLegacyLines] = useState<LogLine[]>([]);
   const [compatibility, setCompatibility] = useState(false);
   const [stale, setStale] = useState(false);
+  const [anchorAnnouncement, setAnchorAnnouncement] = useState(false);
   const [status, setStatus] = useState<ProcessStatus | null>(null);
   const [error, setError] = useState('');
   const [browserLines, setBrowserLines] = useState(getBrowserLogs);
   const [following, setFollowing] = useState(true);
   const cursor = useRef<string | undefined>(undefined);
   const anchorRef = useRef<HTMLPreElement>(null);
+  const observedAnchor = useRef<{ key: string; state: string } | null>(null);
+  const announcedAnchor = useRef<string | null>(null);
   useEffect(() => subscribeBrowserLogs(() => setBrowserLines(getBrowserLogs())), []);
   useEffect(() => {
     cursor.current = undefined;
@@ -70,22 +73,34 @@ export function IsosLogsPanel({ lang, onClose, initialSource = 'all', sources = 
     let statusIdentityUnavailable = false;
     let retryAt = 0;
     let timer: number | undefined;
+    let generation = 0;
+    let controller: AbortController | null = null;
     const schedule = (delay: number): void => { if (!stopped) timer = window.setTimeout(() => { void poll(); }, delay); };
     const poll = async (): Promise<void> => {
       if (stopped || pending || document.visibilityState !== 'visible' || Date.now() < retryAt) return;
       pending = true;
+      const requestGeneration = generation;
+      const requestController = new AbortController();
+      controller = requestController;
       try {
         if (needsStatus) {
-          const fresh = await getProcessStatus();
-          if (stopped) return;
+          const fresh = await getProcessStatus(requestController.signal);
+          if (stopped || requestGeneration !== generation) return;
           setStatus(fresh);
           statusIdentityUnavailable = fresh.run_id_state === 'unavailable';
           if (statusIdentityUnavailable) setStale(true);
           needsStatus = false;
         }
-        const page = await getCurrentLogPage({ source, level, ...(nodePath ? { node_path: nodePath } : {}), ...(correlationId ? { correlation_id: correlationId } : {}), cursor: cursor.current, limit: 200 });
-        if (stopped) return;
+        const page = await getCurrentLogPage({ source, level, ...(nodePath ? { node_path: nodePath } : {}), ...(correlationId ? { correlation_id: correlationId } : {}), cursor: cursor.current, limit: 200 }, requestController.signal);
+        if (stopped || requestGeneration !== generation) return;
         if (isCurrentLogPage(page)) {
+          const anchorKey = `${page.scope.kind}:${page.scope.run_id}`;
+          if (observedAnchor.current?.key !== anchorKey) setAnchorAnnouncement(false);
+          if (observedAnchor.current?.key === anchorKey && observedAnchor.current.state === 'pending' && page.anchor.state === 'found' && announcedAnchor.current !== anchorKey) {
+            announcedAnchor.current = anchorKey;
+            setAnchorAnnouncement(true);
+          }
+          observedAnchor.current = { key: anchorKey, state: page.anchor.state };
           const oldScope = currentScope.current;
           cursor.current = page.next_cursor;
           currentScope.current = `${page.scope.kind}:${page.scope.run_id}`;
@@ -94,11 +109,15 @@ export function IsosLogsPanel({ lang, onClose, initialSource = 'all', sources = 
           setCompatibility(false);
           setStale(statusIdentityUnavailable);
           if (oldScope && oldScope !== currentScope.current) {
-            const fresh = await getProcessStatus();
-            if (stopped) return;
+            const fresh = await getProcessStatus(requestController.signal);
+            if (stopped || requestGeneration !== generation) return;
             setStatus(fresh);
+            statusIdentityUnavailable = fresh.run_id_state === 'unavailable';
+            setStale(statusIdentityUnavailable);
           }
         } else {
+          observedAnchor.current = null;
+          setAnchorAnnouncement(false);
           cursor.current = page.next_cursor ?? cursor.current;
           currentScope.current = null;
           setCurrent(emptyCurrentLogState);
@@ -110,7 +129,7 @@ export function IsosLogsPanel({ lang, onClose, initialSource = 'all', sources = 
         setError('');
         schedule(POLL_MS);
       } catch (reason) {
-        if (!stopped) {
+        if (!stopped && requestGeneration === generation) {
           needsStatus = true;
           retryAt = Date.now() + RETRY_MS;
           if (reason instanceof IsosApiError && (reason.code === 'log_cursor_filter_mismatch' || reason.code === 'log_cursor_invalid')) {
@@ -127,7 +146,12 @@ export function IsosLogsPanel({ lang, onClose, initialSource = 'all', sources = 
           setError(message);
           schedule(RETRY_MS);
         }
-      } finally { pending = false; }
+      } finally {
+        if (requestGeneration === generation) {
+          pending = false;
+          controller = null;
+        }
+      }
     };
     const onVisible = (): void => {
       if (document.visibilityState === 'visible' && Date.now() >= retryAt) {
@@ -136,6 +160,11 @@ export function IsosLogsPanel({ lang, onClose, initialSource = 'all', sources = 
       }
     };
     const onScopeRecheck = (): void => {
+      generation += 1;
+      controller?.abort();
+      controller = null;
+      pending = false;
+      setStale(true);
       needsStatus = true;
       retryAt = 0;
       if (timer !== undefined) window.clearTimeout(timer);
@@ -144,13 +173,13 @@ export function IsosLogsPanel({ lang, onClose, initialSource = 'all', sources = 
     void poll();
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('isosui:log-scope-recheck', onScopeRecheck);
-    return () => { stopped = true; if (timer !== undefined) window.clearTimeout(timer); document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('isosui:log-scope-recheck', onScopeRecheck); };
+    return () => { stopped = true; generation += 1; controller?.abort(); if (timer !== undefined) window.clearTimeout(timer); document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('isosui:log-scope-recheck', onScopeRecheck); };
   }, [source, level, nodePath, correlationId, following, lang]);
   const currentScope = useRef<string | null>(null);
 
   const copy = lang === 'cn'
-    ? { title: 'IsOS 与浏览器日志', source: '来源', all: '所有来源', level: '最低级别', follow: '实时跟踪', close: '关闭', empty: '没有匹配的日志', pendingRun: '等待本次运行的首条就绪或故障事件', pendingManager: '等待管理器会话的首条软件包或 Apply 故障', unavailable: '首条事件不可用；已检测到日志缺口', anchor: '本次首条事件', details: '后续日志', browser: '浏览器本地日志', status: '实时状态', unknown: '未知', legacy: '旧版 IsOS 仅提供未固定首条事件的日志', stale: '上次范围（已过期，非当前运行）', node: '节点路径', correlation: '关联 ID', invalidNode: '节点路径格式无效', invalidCorrelation: '关联 ID 格式无效', jump: '跳转到首条事件', copyRun: '复制运行 ID', copyCorrelation: '复制关联 ID', boundary: '新的运行范围', gap: '日志缺口', acknowledge: '已知悉缺口', trace: '跟踪及以上', debug: '调试及以上', info: '信息及以上', warn: '警告及以上', error: '仅错误' }
-    : { title: 'IsOS and browser logs', source: 'Source', all: 'All sources', level: 'Minimum level', follow: 'Follow', close: 'Close', empty: 'No matching entries', pendingRun: 'Waiting for the first ready or failure event in this run', pendingManager: 'Waiting for the first package or Apply failure in this manager session', unavailable: 'First event unavailable; a log gap was detected', anchor: 'First event in this scope', details: 'Subsequent logs', browser: 'Local browser logs', status: 'Live status', unknown: 'unknown', legacy: 'Older IsOS provides logs without a pinned first event', stale: 'Previous scope (stale, not current)', node: 'Node path', correlation: 'Correlation ID', invalidNode: 'Invalid node path format', invalidCorrelation: 'Invalid correlation ID format', jump: 'Jump to first event', copyRun: 'Copy run ID', copyCorrelation: 'Copy correlation ID', boundary: 'New run scope', gap: 'Log gap', acknowledge: 'Acknowledge gap', trace: 'Trace and above', debug: 'Debug and above', info: 'Info and above', warn: 'Warnings and errors', error: 'Errors only' };
+    ? { title: 'IsOS 与浏览器日志', source: '来源', all: '所有来源', level: '最低级别', follow: '实时跟踪', close: '关闭', empty: '没有匹配的日志', pendingRun: '等待本次运行的首条就绪或故障事件', pendingManager: '等待管理器会话的首条软件包或 Apply 故障', unavailable: '首条事件不可用；已检测到日志缺口', identityUnavailable: 'IsOS 无法确认当前运行身份；旧日志已标为过期。', anchor: '本次首条事件', anchorAvailable: '本次首条事件已可查看', details: '后续日志', browser: '浏览器本地日志', status: '实时状态', unknown: '未知', legacy: '旧版 IsOS 仅提供未固定首条事件的日志', stale: '上次范围（已过期，非当前运行）', node: '节点路径', correlation: '关联 ID', invalidNode: '节点路径格式无效', invalidCorrelation: '关联 ID 格式无效', jump: '跳转到首条事件', copyRun: '复制运行 ID', copyCorrelation: '复制关联 ID', boundary: '新的运行范围', gap: '日志缺口', acknowledge: '已知悉缺口', trace: '跟踪及以上', debug: '调试及以上', info: '信息及以上', warn: '警告及以上', error: '仅错误' }
+    : { title: 'IsOS and browser logs', source: 'Source', all: 'All sources', level: 'Minimum level', follow: 'Follow', close: 'Close', empty: 'No matching entries', pendingRun: 'Waiting for the first ready or failure event in this run', pendingManager: 'Waiting for the first package or Apply failure in this manager session', unavailable: 'First event unavailable; a log gap was detected', identityUnavailable: 'IsOS cannot confirm the current run identity; previous logs are stale.', anchor: 'First event in this scope', anchorAvailable: 'First event is available in this scope', details: 'Subsequent logs', browser: 'Local browser logs', status: 'Live status', unknown: 'unknown', legacy: 'Older IsOS provides logs without a pinned first event', stale: 'Previous scope (stale, not current)', node: 'Node path', correlation: 'Correlation ID', invalidNode: 'Invalid node path format', invalidCorrelation: 'Invalid correlation ID format', jump: 'Jump to first event', copyRun: 'Copy run ID', copyCorrelation: 'Copy correlation ID', boundary: 'New run scope', gap: 'Log gap', acknowledge: 'Acknowledge gap', trace: 'Trace and above', debug: 'Debug and above', info: 'Info and above', warn: 'Warnings and errors', error: 'Errors only' };
   const invalidNode = nodePath !== '' && !validNodeFilter(nodePath);
   const invalidCorrelation = correlationId !== '' && !validCorrelationFilter(correlationId);
   const browserVisible = visibleLogLines(browserLines, level);
@@ -172,14 +201,15 @@ export function IsosLogsPanel({ lang, onClose, initialSource = 'all', sources = 
     <div className="node-graph-logs__context">
       <span>{copy.status}: {status?.state ?? copy.unknown}</span>
       {source !== 'browser' && current.scope && <span>{stale ? copy.stale : current.scope.kind}: {current.scope.run_id} <button type="button" onClick={() => copySafeId(current.scope!.run_id)}>{copy.copyRun}</button></span>}
-      {status?.run_id_state === 'unavailable' && <span role="alert">{copy.unavailable}</span>}
+      {status?.run_id_state === 'unavailable' && <span role="alert">{copy.identityUnavailable}</span>}
     </div>
     {invalidNode && <p role="alert">{copy.invalidNode}</p>}
     {invalidCorrelation && <p role="alert">{copy.invalidCorrelation}</p>}
     {error && <p role="alert">{error}</p>}
     {compatibility && <p role="status">{copy.legacy}</p>}
     {current.boundary && !compatibility && <p aria-live="polite">{copy.boundary}: {current.boundary.previous} → {current.boundary.current}</p>}
-    {diagText && !compatibility && <p role="alert">{copy.gap}: {diagText} <button type="button" onClick={() => setCurrent((state) => ({ ...state, diagnostics: [] }))}>{copy.acknowledge}</button></p>}
+    {diagText && !compatibility && <p role="alert">{copy.gap}: {diagText} <button type="button" onClick={() => setCurrent(acknowledgeCurrentLogDiagnostics)}>{copy.acknowledge}</button></p>}
+    {anchorAnnouncement && !compatibility && <p role="status" aria-live="polite">{copy.anchorAvailable}</p>}
     {source !== 'browser' && !compatibility && current.anchor?.state === 'found' && current.anchor.event && <div className="node-graph-logs__anchor"><strong>{copy.anchor}</strong>{current.anchor.event.correlation_id && <button type="button" onClick={() => copySafeId(current.anchor!.event!.correlation_id!)}>{copy.copyCorrelation}</button>}<pre ref={anchorRef}>{displayLine(current.anchor.event)}</pre></div>}
     {source !== 'browser' && !compatibility && current.anchor?.state === 'pending' && <p role="status">{pendingText}</p>}
     {source !== 'browser' && !compatibility && current.anchor?.state === 'unavailable' && <p role="alert">{copy.unavailable}</p>}

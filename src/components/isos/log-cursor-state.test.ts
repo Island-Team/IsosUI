@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { acceptCurrentLogPage, emptyCurrentLogState, resetCurrentLogDetails, validCorrelationFilter, validNodeFilter } from './log-cursor-state';
+import { acceptCurrentLogPage, acknowledgeCurrentLogDiagnostics, emptyCurrentLogState, resetCurrentLogDetails, validCorrelationFilter, validNodeFilter } from './log-cursor-state';
 import type { CurrentLogPage, LogLine } from '../../services/isos/node-graph';
 
 const event = (code: string, run_id = 'r7'): LogLine => ({ timestamp: '2026-11-01T10:00:00.000Z', level: 'info', source: 'eos', core: 'eos', event_code: code, run_id, message: code });
@@ -62,5 +62,20 @@ describe('P07 current-run log state', () => {
     expect(validCorrelationFilter('op_7-ok')).toBe(true);
     expect(validCorrelationFilter('with space')).toBe(false);
     expect(validCorrelationFilter('x'.repeat(65))).toBe(false);
+  });
+
+  it('bounds changing gap counts by code and suppresses acknowledged evidence in the same run', () => {
+    let state = acceptCurrentLogPage(emptyCurrentLogState, page({ diagnostics: [{ code: 'log_collector_gap', count: 1 }] }));
+    for (let count = 2; count <= 100; count += 1) state = acceptCurrentLogPage(state, page({ lines: [], diagnostics: [{ code: 'log_collector_gap', count }] }));
+    expect(state.diagnostics).toEqual([{ code: 'log_collector_gap', count: 100 }]);
+    state = acknowledgeCurrentLogDiagnostics(state);
+    expect(state.diagnostics).toEqual([]);
+    state = acceptCurrentLogPage(state, page({ lines: [], diagnostics: [{ code: 'log_collector_gap', count: 100 }] }));
+    expect(state.diagnostics).toEqual([]);
+    state = acceptCurrentLogPage(state, page({ lines: [], diagnostics: [{ code: 'log_collector_gap', count: 101 }] }));
+    expect(state.diagnostics).toEqual([{ code: 'log_collector_gap', count: 101 }]);
+    const nextRun = acceptCurrentLogPage(state, page({ scope: { kind: 'deployment_run', run_id: 'r8', active_revision: null }, anchor: { kind: 'first_ready_or_failure', state: 'pending', event: null }, lines: [], diagnostics: [{ code: 'log_collector_gap', count: 1 }] }));
+    expect(nextRun.diagnostics).toEqual([{ code: 'log_collector_gap', count: 1 }]);
+    expect(nextRun.acknowledgedDiagnostics).toEqual({});
   });
 });

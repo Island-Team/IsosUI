@@ -131,4 +131,81 @@ describe('P07 mounted panel with stub IsOS', () => {
     expect(new URL(urls[2]).searchParams.has('cursor')).toBe(false);
     expect(container.textContent).toContain('deployment_stopped');
   });
+
+  it('ignores a late pre-publication log response and immediately rechecks owner status and scope', async () => {
+    let releaseOld!: (value: ReturnType<typeof reply>) => void;
+    const oldLog = new Promise<ReturnType<typeof reply>>((resolve) => { releaseOld = resolve; });
+    let statusCalls = 0;
+    let logCalls = 0;
+    const fetchMock = vi.fn((url: string, _options?: RequestInit) => {
+      if (url.includes('/process-status')) {
+        statusCalls += 1;
+        return Promise.resolve(reply({ state: 'stopped', run_id: statusCalls === 1 ? 'r7' : 'r8', run_id_state: 'known', processes: [] }));
+      }
+      logCalls += 1;
+      return logCalls === 1 ? oldLog : Promise.resolve(reply(page('r8', 'eos_start_failed')));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { IsosLogsPanel } = await import('./IsosLogsPanel');
+    await act(async () => root.render(<IsosLogsPanel lang="en" onClose={() => undefined} />));
+    expect(logCalls).toBe(1);
+    await act(async () => window.dispatchEvent(new Event('isosui:log-scope-recheck')));
+    expect(statusCalls).toBeGreaterThanOrEqual(2);
+    expect(logCalls).toBe(2);
+    expect(container.textContent).toContain('eos_start_failed');
+    const oldOptions = fetchMock.mock.calls.find(([url]) => url.includes('/logs'))?.[1];
+    expect(oldOptions?.signal?.aborted).toBe(true);
+    await act(async () => releaseOld(reply(page('r7', 'eos_ready', [event('old_detail', 'r7')]))));
+    expect(container.textContent).toContain('eos_start_failed');
+    expect(container.textContent).not.toContain('old_detail');
+    expect(container.textContent).not.toContain('deployment_run: r7');
+  });
+
+  it('announces a pending anchor when it becomes found exactly once', async () => {
+    const pending = { ...page('r7', 'eos_ready'), anchor: { kind: 'first_ready_or_failure', state: 'pending', event: null }, lines: [] };
+    const pages = [pending, page('r7', 'eos_ready'), page('r7', 'eos_ready'), page('r7', 'eos_ready')];
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => url.includes('/process-status')
+      ? reply({ state: 'running', run_id: 'r7', run_id_state: 'known', processes: [] })
+      : reply(pages.shift())));
+    const { IsosLogsPanel } = await import('./IsosLogsPanel');
+    await act(async () => root.render(<IsosLogsPanel lang="en" onClose={() => undefined} />));
+    expect(container.textContent).toContain('Waiting for the first ready or failure event');
+    expect(container.textContent).not.toContain('First event is available in this scope');
+    await act(async () => { await vi.advanceTimersByTimeAsync(1200); });
+    const announcement = [...container.querySelectorAll('[aria-live="polite"]')].find((item) => item.textContent === 'First event is available in this scope');
+    expect(announcement).toBeTruthy();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1200); });
+    expect([...container.querySelectorAll('[aria-live="polite"]')].filter((item) => item.textContent === 'First event is available in this scope')).toEqual([announcement]);
+    await act(async () => root.render(<IsosLogsPanel lang="cn" onClose={() => undefined} />));
+    expect(container.textContent).toContain('本次首条事件已可查看');
+    expect([...container.querySelectorAll('[aria-live="polite"]')].filter((item) => item.textContent === '本次首条事件已可查看')).toHaveLength(1);
+  });
+
+  it('uses distinct English and Chinese run identity unavailable copy without claiming anchor loss', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => url.includes('/process-status')
+      ? reply({ state: 'failed', run_id: null, run_id_state: 'unavailable', processes: [] })
+      : reply({ diagnostics: [{ path: '/scope', code: 'log_scope_unavailable', message: 'Scope unavailable' }] }, 503, 'Scope unavailable')));
+    const { IsosLogsPanel } = await import('./IsosLogsPanel');
+    await act(async () => root.render(<IsosLogsPanel lang="en" onClose={() => undefined} />));
+    expect(container.textContent).toContain('IsOS cannot confirm the current run identity');
+    expect(container.textContent).not.toContain('First event unavailable; a log gap was detected');
+    await act(async () => root.render(<IsosLogsPanel lang="cn" onClose={() => undefined} />));
+    expect(container.textContent).toContain('IsOS 无法确认当前运行身份');
+    expect(container.textContent).not.toContain('首条事件不可用；已检测到日志缺口');
+  });
+
+  it('keeps an acknowledged same-run gap dismissed across repeated owner pages', async () => {
+    const gapPage = { ...page('r7', 'eos_ready'), diagnostics: [{ code: 'log_collector_gap', count: 4 }] };
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => url.includes('/process-status')
+      ? reply({ state: 'running', run_id: 'r7', run_id_state: 'known', processes: [] })
+      : reply(gapPage)));
+    const { IsosLogsPanel } = await import('./IsosLogsPanel');
+    await act(async () => root.render(<IsosLogsPanel lang="en" onClose={() => undefined} />));
+    expect(container.textContent).toContain('log_collector_gap (4)');
+    const acknowledge = [...container.querySelectorAll('button')].find((item) => item.textContent === 'Acknowledge gap');
+    await act(async () => acknowledge?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    expect(container.textContent).not.toContain('log_collector_gap (4)');
+    await act(async () => { await vi.advanceTimersByTimeAsync(1200); });
+    expect(container.textContent).not.toContain('log_collector_gap (4)');
+  });
 });
