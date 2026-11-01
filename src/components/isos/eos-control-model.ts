@@ -17,7 +17,7 @@ export function eosControlNodes(graph: NodeGraph): EosGraphNode[] {
 
 export function discoveredHardware(graph: NodeGraph, discovery: EosDiscoveryNode[]): EosGraphNode[] {
   const paths = new Set(discovery.map((node) => canonicalNodePath(node.path)));
-  return eosGraphNodes(graph).filter(({ path, node }) => /^eos\.hardware\.(camera|base|manipulator)@v1\.0$/.test(node.node_type) && paths.has(path));
+  return eosGraphNodes(graph).filter(({ path, node }) => /^eos\.hardware\.(camera|base|manipulator)@(v0\.1|v1\.0)$/.test(node.node_type) && paths.has(path));
 }
 
 export function activeGraphIsCurrent(revision: string, active: string | null | undefined): boolean {
@@ -32,7 +32,7 @@ export function visionRuntimeState(document: NodeGraphDocument | null, status: P
 
 export type HardwareKind = 'camera' | 'base' | 'manipulator';
 export function hardwareKind(nodeType: string): HardwareKind | null {
-  const match = /^eos\.hardware\.(camera|base|manipulator)@v1\.0$/.exec(nodeType);
+  const match = /^eos\.hardware\.(camera|base|manipulator)@(v0\.1|v1\.0)$/.exec(nodeType);
   return match ? match[1] as HardwareKind : null;
 }
 

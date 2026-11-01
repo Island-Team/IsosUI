@@ -2,7 +2,7 @@
 
 [English](../../../docs/isosui/interfaces/browser-results.md) · [设计](../design-browser-results_cn.md) · [首次使用](../usage_cn.md) · EOS 所有者契约：`Island-eos/docs_cn/eos/interfaces/control_cn.md` 中的 R07 章节
 
-**目标 UI 契约；本设计提交尚未实现 IsosUI R07 客户端。** IsOS 拥有保存图、活动修订、部署运行身份和 Stop。EOS 拥有活动绑定、准入、日志结果和实时状态。IsosUI 可以显示浏览器本地发送状态，但只有与命令关联的 EOS `DispatchResult` 能确定结果。图连线只声明一个绑定目标，不执行浏览器命令。MuJoCo 运动控件必须等 R06 物理停止验证后才能开放。
+**R07 主题分支实现。** 最小模拟适配器类型化控制卡和受保护结果读取器实现本契约。 IsOS 拥有保存图、活动修订、部署运行身份和 Stop。EOS 拥有活动绑定、准入、日志结果和实时状态。IsosUI 可以显示浏览器本地发送状态，但只有与命令关联的 EOS `DispatchResult` 能确定结果。图连线只声明一个绑定目标，不执行浏览器命令。MuJoCo 运动控件必须等 R06 物理停止验证后才能开放。
 
 ## 类型化边界
 

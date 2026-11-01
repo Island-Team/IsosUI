@@ -2,7 +2,7 @@
 
 [中文](../../../docs_cn/isosui/interfaces/browser-results_cn.md) · [Design](../design-browser-results.md) · [First use](../usage.md) · EOS owner contract: `Island-eos/docs/eos/interfaces/control.md#r07-authorized-browser-result`
 
-**Target UI contract; no IsosUI R07 client is implemented on this design commit.** IsOS owns the saved graph, active revision, deployment run identity and Stop. EOS owns the active binding, admission, journal result and live status. IsosUI may display a browser-local send state, but only a correlated EOS `DispatchResult` establishes a command outcome. A graph edge declares one binding target; it never executes a browser command. R06 physical stop qualification gates exposure of MuJoCo movement controls.
+**R07 topic implementation.** The minimal mock-adapter typed card and guarded result reader implement this contract. IsOS owns the saved graph, active revision, deployment run identity and Stop. EOS owns the active binding, admission, journal result and live status. IsosUI may display a browser-local send state, but only a correlated EOS `DispatchResult` establishes a command outcome. A graph edge declares one binding target; it never executes a browser command. R06 physical stop qualification gates exposure of MuJoCo movement controls.
 
 ## Typed boundary
 
