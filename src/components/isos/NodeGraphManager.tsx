@@ -10,10 +10,11 @@ import { DISPATCHER_PATH, withControlTarget, withSkillSteps } from './control-no
 import { GraphCoreWindow, readCoreWindow, type CoreWindowState } from './GraphCoreWindow';
 import { EosWorkbench } from './EosWorkbench';
 import { IsosLogsPanel } from './IsosLogsPanel';
-import { edgeContracts } from './edge-idl';
+import { edgeContracts, edgeInputDiagnostics } from './edge-idl';
 import { EgiaWorkbench } from './EgiaWorkbench';
 import { processRunFeedback } from './process-run-feedback';
 import { browserLog } from '@/services/isos/browser-logs';
+import { draftValidationStamp, validationDisplayIsCurrent, validationResponseIsCurrent, type DraftValidationStamp } from './draft-validation';
 import './node-graph-manager.scss';
 
 interface Props { lang: Language; visible?: boolean; onDirtyChange?: (dirty: boolean) => void }
@@ -39,10 +40,13 @@ function DataIdl({ definition, lang }: { definition: DataTypeDefinition; lang: L
   const fields = Object.entries(definition.schema.properties || {});
   return <><h3>{definition.schema.title || definition.id}</h3><p><code>{definition.id}@{definition.version}</code> · {definition.media_type} · {definition.codec}</p><p>{definition.purpose}</p><p>{definition.schema.description}</p><p>{lang === 'cn' ? '最大负载' : 'Maximum payload'}: {definition.max_payload_bytes} bytes</p><dl>{fields.map(([name, field]) => <React.Fragment key={name}><dt>{name} <small>{field.type || 'value'}{field['x-unit'] ? ` · ${field['x-unit']}` : ''}{definition.schema.required?.includes(name) ? ' *' : ''}</small></dt><dd>{field.description || '—'}{field.minimum !== undefined || field.maximum !== undefined ? ` (${field.minimum ?? '−∞'}…${field.maximum ?? '+∞'})` : ''}</dd></React.Fragment>)}</dl></>;
 }
-function EdgeIdlPanel({ edge, entries, dataTypes, lang }: { edge: Edge; entries: GraphNode[]; dataTypes: DataTypeDefinition[]; lang: Language }): React.ReactElement {
+function EdgeIdlPanel({ edge, entries, dataTypes, diagnostics, validated, processStatus, onOpenMonitor, lang }: { edge: Edge; entries: GraphNode[]; dataTypes: DataTypeDefinition[]; diagnostics: NodeGraphDiagnostic[]; validated: boolean; processStatus: ProcessStatus | null; onOpenMonitor: () => void; lang: Language }): React.ReactElement {
   const { sourceType, targetType, sourceIdl, targetIdl } = edgeContracts(entries, edge, dataTypes);
+  const inputIssues = validated ? edgeInputDiagnostics({ ...edge, inputIndex: edge.data?.inputIndex, inputCount: edge.data?.inputCount }, diagnostics) : [];
+  const typeUnknown = !sourceType || !targetType;
+  const typeMismatch = !typeUnknown && sourceType !== targetType;
   const missing = lang === 'cn' ? '目录中没有此数据类型的 IDL。' : 'No IDL for this data type in the catalog.';
-  return <section className="node-graph-edge-idl"><h2>{lang === 'cn' ? '数据接口 IDL' : 'Data interface IDL'}</h2><p><code>{edge.source}.{String(edge.sourceHandle).replace('out:', '')}</code> → <code>{edge.target}.{String(edge.targetHandle).replace('in:', '')}</code></p><p>{edge.label}</p><p>{lang === 'cn' ? '来源类型' : 'Source type'}: <code>{sourceType || '—'}</code></p><p>{lang === 'cn' ? '目标类型' : 'Target type'}: <code>{targetType || '—'}</code></p>{sourceIdl ? <DataIdl definition={sourceIdl} lang={lang} /> : <p>{missing}</p>}{targetType && targetType !== sourceType && <><h3>{lang === 'cn' ? '目标接口' : 'Target interface'}</h3>{targetIdl ? <DataIdl definition={targetIdl} lang={lang} /> : <p>{missing}</p>}</>}</section>;
+  return <section className="node-graph-edge-idl"><h2>{lang === 'cn' ? '数据接口 IDL' : 'Data interface IDL'}</h2><p><code>{edge.source}.{String(edge.sourceHandle).replace('out:', '')}</code> → <code>{edge.target}.{String(edge.targetHandle).replace('in:', '')}</code></p><p>{edge.label}</p><p>{lang === 'cn' ? '来源类型' : 'Source type'}: <code>{sourceType || '—'}</code></p><p>{lang === 'cn' ? '目标类型' : 'Target type'}: <code>{targetType || '—'}</code></p><h3>{lang === 'cn' ? '草稿连接检查' : 'Draft connection check'}</h3><p role={typeMismatch || inputIssues.length ? 'alert' : 'status'}>{typeMismatch ? (lang === 'cn' ? '端口类型不匹配。' : 'Port types do not match.') : typeUnknown ? (lang === 'cn' ? '端口类型元数据不可用；请检查节点图。' : 'Port type metadata is unavailable; check the graph.') : !validated ? (lang === 'cn' ? '尚未检查当前草稿。' : 'Current draft has not been checked.') : inputIssues.length ? (lang === 'cn' ? 'IsOS 拒绝了此输入端口。' : 'IsOS rejected this input port.') : (lang === 'cn' ? '此输入端口没有 IsOS 诊断。' : 'No IsOS diagnostic for this input port.')}</p>{inputIssues.map((issue, index) => <p className="node-graph-error" key={index}><code>{issue.code || issue.path}</code>: {issue.message}</p>)}<h3>{lang === 'cn' ? '运行状态' : 'Runtime state'}</h3><p>{lang === 'cn' ? '部署' : 'Deployment'}: {processStatus?.state || (lang === 'cn' ? '未知' : 'unknown')}. {lang === 'cn' ? '节点实时健康请查看 EOS 监视器。' : 'See the EOS monitor for live node health.'}</p><button type="button" onClick={onOpenMonitor}>{lang === 'cn' ? '打开 EOS 监视器' : 'Open EOS monitor'}</button>{sourceIdl ? <DataIdl definition={sourceIdl} lang={lang} /> : <p>{missing}</p>}{targetType && targetType !== sourceType && <><h3>{lang === 'cn' ? '目标接口' : 'Target interface'}</h3>{targetIdl ? <DataIdl definition={targetIdl} lang={lang} /> : <p>{missing}</p>}</>}</section>;
 }
 const DETAIL_FIELDS = ['frame_id', 'joint_names', 'adapter', 'health_timing', 'observation', 'movement', 'references'] as const;
 
@@ -169,6 +173,7 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
   const [undoStack, setUndoStack] = useState<NodeGraph[]>([]);
   const [redoStack, setRedoStack] = useState<NodeGraph[]>([]);
   const [diagnostics, setDiagnostics] = useState<NodeGraphDiagnostic[]>([]);
+  const [validationStamp, setValidationStamp] = useState<DraftValidationStamp | null>(null);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [message, setNotice] = useState({ text: '', error: false });
   const setMessage = (text: string, error = false): void => setNotice({ text, error });
@@ -261,6 +266,8 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
     if (confirm && dirty && !window.confirm(copy.discard)) return;
     const generation = editGeneration.current;
     setBusy(true);
+    setValidationStamp(null);
+    setDiagnostics([]);
     try { const [document, catalog, sets, status, cores] = await Promise.all([getNodeGraph(), getNodeTypes(), getNodeSets().catch(() => ({ sets: [] })), getProcessStatus().catch(() => null), getCoreReadiness().catch(() => null)]); if (generation !== editGeneration.current) { setMessage(lang === 'cn' ? '刷新期间节点图已更改，保留未保存的修改。' : 'Graph changed during refresh; unsaved edits were preserved.'); return; } const layoutKey = graphLayoutKey(document.graph); if (layoutKeyRef.current !== layoutKey) { setPositions(parseNodePositions(localStorage.getItem(layoutKey))); setMirrors(parseNodeMirrors(localStorage.getItem(graphMirrorKey(document.graph)))); layoutKeyRef.current = layoutKey; } setGraph(document.graph); setSaved(JSON.stringify(document.graph)); setRevision(document.revision); setTypes(catalog.types); setDataTypes(catalog.data_types || []); setPrimitiveSpecs(catalog.primitive_specs || []); setNodeSets(sets.sets); setSetKey(''); setSetValues({}); setSetPreview(null); setProcessStatus(status); setReadiness(cores); setTypeId(catalog.types[0]?.id || ''); setSelected((current) => current.filter((path) => graphNodes(document.graph, []).some((entry) => entry.path === path))); setDiagnostics([]); setUndoStack([]); setRedoStack([]); setMessage(''); }
     catch (error) { setMessage(error instanceof Error ? error.message : copy.disconnected, true); }
     finally { setBusy(false); }
@@ -286,10 +293,10 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
     if (!graph) return;
     const next = change(graph);
     if (next === graph || JSON.stringify(next) === JSON.stringify(graph)) return;
-    editGeneration.current += 1; setUndoStack((stack) => [...stack.slice(-49), graph]); setRedoStack([]); setGraph(next); setSetPreview(null); setDiagnostics([]);
+    editGeneration.current += 1; setUndoStack((stack) => [...stack.slice(-49), graph]); setRedoStack([]); setGraph(next); setSetPreview(null); setDiagnostics([]); setValidationStamp(null);
   };
-  const undo = (): void => { if (!graph || !undoStack.length) return; editGeneration.current += 1; setRedoStack((stack) => [...stack, graph]); setGraph(undoStack[undoStack.length - 1]); setSetPreview(null); setUndoStack(undoStack.slice(0, -1)); };
-  const redo = (): void => { if (!graph || !redoStack.length) return; editGeneration.current += 1; setUndoStack((stack) => [...stack, graph]); setGraph(redoStack[redoStack.length - 1]); setSetPreview(null); setRedoStack(redoStack.slice(0, -1)); };
+  const undo = (): void => { if (!graph || !undoStack.length) return; editGeneration.current += 1; setRedoStack((stack) => [...stack, graph]); setGraph(undoStack[undoStack.length - 1]); setSetPreview(null); setDiagnostics([]); setValidationStamp(null); setUndoStack(undoStack.slice(0, -1)); };
+  const redo = (): void => { if (!graph || !redoStack.length) return; editGeneration.current += 1; setUndoStack((stack) => [...stack, graph]); setGraph(redoStack[redoStack.length - 1]); setSetPreview(null); setDiagnostics([]); setValidationStamp(null); setRedoStack(redoStack.slice(0, -1)); };
   const previewPackageSet = async (): Promise<void> => {
     if (!graph || !selectedSet) return;
     setBusy(true);
@@ -349,11 +356,13 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
     else if ((event.key === 'Delete' || event.key === 'Backspace') && selected.length) { event.preventDefault(); edit((current) => removeSelectedNodes(current, selected)); setPositions((current) => Object.fromEntries(Object.entries(current).filter(([path]) => !selected.includes(path)))); setSelected([]); }
     else if (event.key.toLowerCase() === 'r' && !event.ctrlKey && !event.metaKey && !quickAdd && !edgeMenu && selected.length) { event.preventDefault(); setMirrors((current) => { const next = { ...current }; for (const path of selected) next[path] = !next[path]; return next; }); }
   }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey); }, [graph, undoStack, redoStack, selected, quickAdd, edgeMenu, visible]);
-  const validate = async (): Promise<boolean> => { if (!graph) return false; setBusy(true); try { const result = await validateNodeGraph(graph); setDiagnostics(result.diagnostics); setMessage(result.valid ? copy.valid : `${result.diagnostics.length} ${copy.diagnostics.toLowerCase()}`, !result.valid); return result.valid; } catch (error) { setMessage(error instanceof Error ? error.message : String(error), true); return false; } finally { setBusy(false); } };
+  const validate = async (): Promise<boolean> => { if (!graph) return false; const generation = editGeneration.current; setBusy(true); try { const result = await validateNodeGraph(graph); if (!validationResponseIsCurrent(generation, editGeneration.current)) return false; setDiagnostics(result.diagnostics); setValidationStamp(draftValidationStamp(graph, generation)); setMessage(result.valid ? copy.valid : `${result.diagnostics.length} ${copy.diagnostics.toLowerCase()}`, !result.valid); return result.valid; } catch (error) { if (validationResponseIsCurrent(generation, editGeneration.current)) { setValidationStamp(null); setMessage(error instanceof Error ? error.message : String(error), true); } return false; } finally { setBusy(false); } };
   const saveSnapshot = async (snapshot: NodeGraph, expectedRevision: string): Promise<string | null> => {
     const generation = editGeneration.current;
     const checked = await validateNodeGraph(snapshot);
+    if (!validationResponseIsCurrent(generation, editGeneration.current)) return null;
     setDiagnostics(checked.diagnostics);
+    setValidationStamp(draftValidationStamp(snapshot, generation));
     if (!checked.valid) { setMessage(checked.diagnostics.map((item) => item.message).join('; ') || copy.invalid, true); setSideCollapsed(false); setDiagnosticsOpen(true); return null; }
     const document = await applyNodeGraph(expectedRevision, snapshot);
     const newerDraft = editGeneration.current !== generation;
@@ -378,7 +387,9 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
         nextRevision = savedRevision;
       } else {
         const checked = await validateNodeGraph(graph);
+        if (!validationResponseIsCurrent(generation, editGeneration.current)) return;
         setDiagnostics(checked.diagnostics);
+        setValidationStamp(draftValidationStamp(graph, generation));
         if (!checked.valid) { setMessage(checked.diagnostics.map((item) => item.message).join('; ') || copy.invalid, true); setSideCollapsed(false); setDiagnosticsOpen(true); return; }
       }
       if (generation !== editGeneration.current) { setMessage(lang === 'cn' ? '运行前节点图已更改，请再次保存并运行。' : 'Graph changed before run. Save and run again.', true); return; }
@@ -392,8 +403,23 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
     finally { setBusy(false); }
   };
   const stop = async (): Promise<void> => { if (busy) return; setBusy(true); try { const status = await controlProcesses('stop'); setProcessStatus(status); setMessage(lang === 'cn' ? '已停止当前节点图。' : 'Current graph stopped.'); } catch (error) { setMessage(error instanceof Error ? error.message : String(error), true); } finally { setBusy(false); } };
+  const validationCurrent = !!graph && validationDisplayIsCurrent(validationStamp, graph, editGeneration.current);
   const nodes = useMemo<Node<FlowData>[]>(() => entries.map((entry, index) => ({ id: entry.path, type: 'profile', position: positions[entry.path] || { x: 50 + (index % 3) * 330, y: 50 + Math.floor(index / 3) * 220 }, data: { entry, error: diagnostics.some((item) => item.path.includes(entry.path)), mirrored: !!mirrors[entry.path] }, selected: selected.includes(entry.path) })), [entries, positions, selected, diagnostics, mirrors]);
-  const edges = useMemo<Edge[]>(() => entries.flatMap((entry) => Object.entries(entry.node.inputs || {}).flatMap(([input, sources]) => inputSources(sources).map((source) => { const port = entries.find((candidate) => sameNodePath(candidate.path, source.node))?.definition?.outputs.find((item) => item.name === source.output); const visual = interfaceVisual(port); const id = `${entry.path}:${input}:${canonicalNodePath(source.node)}:${source.output}`; const label = `${port?.data_type || source.output} · ${visual.label}`; return { id, source: canonicalNodePath(source.node), sourceHandle: `out:${source.output}`, target: entry.path, targetHandle: `in:${input}`, label, ariaLabel: label, interactionWidth: 24, focusable: true, selected: selectedEdge === id, className: visual.className, style: visual.style as React.CSSProperties, animated: false }; }))), [entries, selectedEdge]);
+  const edges = useMemo<Edge[]>(() => entries.flatMap((entry) => Object.entries(entry.node.inputs || {}).flatMap(([input, sources]) => {
+    const sourceList = inputSources(sources);
+    return sourceList.map((source, inputIndex) => {
+    const port = entries.find((candidate) => sameNodePath(candidate.path, source.node))?.definition?.outputs.find((item) => item.name === source.output);
+    const visual = interfaceVisual(port);
+    const id = `${entry.path}:${input}:${inputIndex}:${canonicalNodePath(source.node)}:${source.output}`;
+    const label = `${port?.data_type || source.output} · ${visual.label}`;
+    const edge = { source: canonicalNodePath(source.node), sourceHandle: `out:${source.output}`, target: entry.path, targetHandle: `in:${input}`, data: { inputIndex, inputCount: sourceList.length } };
+    const destinationType = entry.definition?.inputs.find((item) => item.name === input)?.data_type;
+    const mismatch = !!port?.data_type && !!destinationType && port.data_type !== destinationType;
+    const rejected = validationCurrent && edgeInputDiagnostics({ ...edge, inputIndex, inputCount: edge.data.inputCount }, diagnostics).length > 0;
+    const reason = mismatch ? (lang === 'cn' ? '端口类型不匹配' : 'Port type mismatch') : rejected ? (lang === 'cn' ? 'IsOS 拒绝了此输入端口' : 'IsOS rejected this input port') : '';
+    return { id, ...edge, label: reason ? `${label} · ${reason}` : label, ariaLabel: reason ? `${label} · ${reason}` : label, interactionWidth: 24, focusable: true, selected: selectedEdge === id, className: `${visual.className}${reason ? ' node-graph-edge--invalid' : ''}`, style: visual.style as React.CSSProperties, animated: false };
+    });
+  })), [entries, selectedEdge, diagnostics, validationCurrent, lang]);
   const edgeDetail = selectedEdge ? edges.find((edge) => edge.id === selectedEdge) : undefined;
   const onNodesChange = (changes: NodeChange[]): void => {
     if (changes.some((change) => change.type === 'select')) setSelected((current) => applyNodeSelection(current, changes));
@@ -437,10 +463,10 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
         {visible && <><GraphCoreWindow title="EOS" state={coreWindows.eos} onChange={(patch) => updateCoreWindow('eos', patch)} lang={lang}><EosWorkbench lang={lang} graphDirty={dirty} onOpenGraph={() => updateCoreWindow('eos', { open: false })} /></GraphCoreWindow>
         <GraphCoreWindow title="EGIA" state={coreWindows.egia} onChange={(patch) => updateCoreWindow('egia', patch)} lang={lang}><EgiaWorkbench lang={lang} onOpenGraph={() => updateCoreWindow('egia', { open: false })} /></GraphCoreWindow></>}
       </div>
-      <aside className="node-graph-side" hidden={sideCollapsed}>{edgeDetail ? <EdgeIdlPanel edge={edgeDetail} entries={entries} dataTypes={dataTypes} lang={lang} /> : chosen ? <><NodeInspector key={chosen.path} entry={chosen} entries={entries} lang={lang} options={nodeOptions} primitiveSpecs={primitiveSpecs} onBind={(target) => { try { edit((current) => bindPrimitiveTarget(current, types, chosen.path, target)); setMessage(''); } catch (error) { setMessage(error instanceof Error ? error.message : String(error), true); } }} onChange={(change) => edit((current) => updateNode(current, chosen.path, change))} onRename={(id) => { try { edit((current) => renameNode(current, chosen.path, id)); setSelected([`${chosen.path.slice(0, chosen.path.lastIndexOf('/') + 1)}${id}`]); setMessage(''); } catch { setMessage(copy.duplicate, true); } }} onRemove={() => { edit((current) => removeNode(current, chosen.path)); setPositions((current) => Object.fromEntries(Object.entries(current).filter(([path]) => path !== chosen.path))); setSelected([]); }} /><h3>{copy.target}</h3><ul>{Object.entries(chosen.node.inputs || {}).flatMap(([input, sources]) => inputSources(sources).map((source) => <li key={`${input}:${source.node}:${source.output}`}>{input} ← {canonicalNodePath(source.node)}.{source.output}<button type="button" aria-label={`${copy.remove} ${input}`} onClick={() => edit((current) => disconnectInput(current, chosen.path, input, source.node, source.output))}>×</button></li>))}</ul></> : selected.length > 1 ? <div className="node-graph-multi-selection"><p><strong>{selected.length}</strong> {copy.selectedCount}</p><button type="button" onClick={() => { edit((current) => removeSelectedNodes(current, selected)); setPositions((current) => Object.fromEntries(Object.entries(current).filter(([path]) => !selected.includes(path)))); setSelected([]); }}>{copy.remove}</button></div> : <p>{copy.noSelection}</p>}
+      <aside className="node-graph-side" hidden={sideCollapsed}>{edgeDetail ? <EdgeIdlPanel edge={edgeDetail} entries={entries} dataTypes={dataTypes} diagnostics={diagnostics} validated={validationCurrent} processStatus={processStatus} onOpenMonitor={() => updateCoreWindow('eos', { open: true })} lang={lang} /> : chosen ? <><NodeInspector key={chosen.path} entry={chosen} entries={entries} lang={lang} options={nodeOptions} primitiveSpecs={primitiveSpecs} onBind={(target) => { try { edit((current) => bindPrimitiveTarget(current, types, chosen.path, target)); setMessage(''); } catch (error) { setMessage(error instanceof Error ? error.message : String(error), true); } }} onChange={(change) => edit((current) => updateNode(current, chosen.path, change))} onRename={(id) => { try { edit((current) => renameNode(current, chosen.path, id)); setSelected([`${chosen.path.slice(0, chosen.path.lastIndexOf('/') + 1)}${id}`]); setMessage(''); } catch { setMessage(copy.duplicate, true); } }} onRemove={() => { edit((current) => removeNode(current, chosen.path)); setPositions((current) => Object.fromEntries(Object.entries(current).filter(([path]) => path !== chosen.path))); setSelected([]); }} /><h3>{copy.target}</h3><ul>{Object.entries(chosen.node.inputs || {}).flatMap(([input, sources]) => inputSources(sources).map((source) => <li key={`${input}:${source.node}:${source.output}`}>{input} ← {canonicalNodePath(source.node)}.{source.output}<button type="button" aria-label={`${copy.remove} ${input}`} onClick={() => edit((current) => disconnectInput(current, chosen.path, input, source.node, source.output))}>×</button></li>))}</ul></> : selected.length > 1 ? <div className="node-graph-multi-selection"><p><strong>{selected.length}</strong> {copy.selectedCount}</p><button type="button" onClick={() => { edit((current) => removeSelectedNodes(current, selected)); setPositions((current) => Object.fromEntries(Object.entries(current).filter(([path]) => !selected.includes(path)))); setSelected([]); }}>{copy.remove}</button></div> : <p>{copy.noSelection}</p>}
         <details className="node-graph-panel" open={diagnosticsOpen} onToggle={(event) => setDiagnosticsOpen(event.currentTarget.open)}>
           <summary><strong>{copy.diagnostics}</strong><span>{diagnostics.length || '✓'}</span></summary>
-          {diagnostics.length ? <ul>{diagnostics.map((item, index) => <li key={index}><button className="node-graph-diagnostic" type="button" onClick={() => { setSelected([entries.find((entry) => item.path.includes(entry.path))?.path || ''].filter(Boolean)); setSideCollapsed(false); }}><code>{item.path}</code><span>{item.message}</span></button></li>)}</ul> : <p>{copy.valid}</p>}
+          {validationCurrent ? diagnostics.length ? <ul>{diagnostics.map((item, index) => <li key={index}><button className="node-graph-diagnostic" type="button" onClick={() => { setSelected([entries.find((entry) => item.path.includes(entry.path))?.path || ''].filter(Boolean)); setSideCollapsed(false); }}><code>{item.path}</code><span>{item.message}</span></button></li>)}</ul> : <p>{copy.valid}</p> : <p>{lang === 'cn' ? '当前草稿尚未检查。' : 'Current draft has not been checked.'}</p>}
         </details>
         <details className="node-graph-panel">
           <summary><strong>{copy.process}</strong><span>{processStatus?.processes.length ?? '—'}</span></summary>

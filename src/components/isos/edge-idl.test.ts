@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { edgeContracts } from './edge-idl';
+import { edgeContracts, edgeInputDiagnostics } from './edge-idl';
 import type { DataTypeDefinition } from '@/services/isos/node-graph';
 import type { GraphNode } from './node-graph-edits';
 
@@ -15,5 +15,31 @@ describe('edge IDL resolution', () => {
   });
   it('keeps missing endpoint descriptors explicit', () => {
     expect(edgeContracts(entries, { source: 'source', target: 'target', sourceHandle: 'out:frame', targetHandle: 'in:missing' }, descriptors)).toMatchObject({ sourceType: 'camera_frame', targetType: '' });
+  });
+});
+
+describe('edge input diagnostics', () => {
+  it('selects only diagnostics for the destination input, including slash and dot paths', () => {
+    const target = 'cores/eos/layers/interface/groups/gate/nodes/front';
+    const diagnostics = [
+      { path: `${target}/inputs/frame`, code: 'type_mismatch', message: 'Frame type mismatch' },
+      { path: 'cores.eos.layers.interface.groups.gate.nodes.front.inputs.other', message: 'Other input' },
+      { path: 'cores.eos.layers.interface.groups.gate.nodes.other.inputs.frame', message: 'Other node' },
+    ];
+    expect(edgeInputDiagnostics({ source: 'camera', target, targetHandle: 'in:frame' }, diagnostics)).toEqual([diagnostics[0]]);
+    expect(edgeInputDiagnostics({ source: 'camera', target, targetHandle: null }, diagnostics)).toEqual([]);
+  });
+  it('keeps two source indices and similarly named ports distinct', () => {
+    const target = 'eos/interface/gate/front';
+    const pointer = '/cores/eos/layers/interface/groups/gate/nodes/front';
+    const diagnostics = [
+      { path: `${pointer}/inputs/frame/0`, message: 'First source rejected' },
+      { path: `${pointer}/inputs/frame/1`, message: 'Second source rejected' },
+      { path: `${pointer}/inputs/frame_extra/1`, message: 'Other port' },
+      { path: `${pointer}/inputs/frame`, message: 'Whole port' },
+      { path: `${pointer}2/inputs/frame/1`, message: 'Other node' },
+    ];
+    expect(edgeInputDiagnostics({ source: 'camera_a', target, targetHandle: 'in:frame', inputIndex: 0, inputCount: 2 }, diagnostics)).toEqual([diagnostics[0]]);
+    expect(edgeInputDiagnostics({ source: 'camera_b', target, targetHandle: 'in:frame', inputIndex: 1, inputCount: 2 }, diagnostics)).toEqual([diagnostics[1]]);
   });
 });
