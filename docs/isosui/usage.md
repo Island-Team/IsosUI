@@ -14,6 +14,12 @@
 
 The root [README](../../README.md) gives the actual development commands, API origins and build outputs. IsOS owns package installation and process operations.
 
+## P07 log navigation — target
+
+Open Home Logs after a package or Apply failure. The target panel asks IsOS for `view=current` and shows the manager-session first package/Apply failure above the source, level, node and correlation filters. While no such event has arrived, it says the anchor is pending; an empty list is not evidence of success. After IsOS admits a deployment run, the panel switches to that run's first ready or failure event, then shows later detail rows. It keeps that run selected after Stop, process exit or manager restart until IsOS admits another run. Use Home status for live readiness and the saved/active revision; the log event explains what happened at its own time.
+
+Pause Follow to inspect a row's safe source, core, event code, run ID, correlation ID and graph node pointer. Narrow the detail rows only after seeing the pinned first event. If retention or rotation lost entries, the panel displays a gap notice and resumes in the same run; if the collector is unavailable, it retains the last rows and cursor and displays an error until recovery. A new admitted run gets a visible boundary and its own anchor. Browser console diagnostics remain separate from IsOS events. This is planned UI behavior; the current panel only shows retained timestamp, level, source and message. See the [P07 UI contract](interfaces/log-cursors.md).
+
 ## Target interaction — planned
 
 Graph starts with a searchable registered type library. A selected type shows its nonblank **type description**, placement, capabilities, port contract and setting help; a selected instance shows its own editable description. The configuration form renders settings from catalog metadata. A selector, like a model-weight picker, searches verified options for that **node and setting**; scene and device options ship first. The selector header shows the exact package/version pin; each option row shows stable ID, human label, description, availability and reason. Keep an unavailable saved value visible with its reason; never silently replace it. Check graph remains available and reports unresolved or invalid choices; Apply is blocked until they are corrected. Package paths stay private to IsOS; the graph saves stable IDs and exact package pins.
