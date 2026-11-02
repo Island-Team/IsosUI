@@ -18,7 +18,7 @@ import { browserLog } from '@/services/isos/browser-logs';
 import { draftValidationStamp, validationDisplayIsCurrent, validationResponseIsCurrent, type DraftValidationStamp } from './draft-validation';
 import { CatalogSelector, settingOptionGroup } from './CatalogSelector';
 import { CatalogBrowser } from './CatalogBrowser';
-import { catalogSelectionBlocks, optionResponseIsCurrent, pairedDeviceSettings, type OptionSnapshot } from './catalog-options';
+import { catalogReloadIsCurrent, catalogSelectionBlocks, optionResponseIsCurrent, pairedDeviceSettings, type OptionSnapshot } from './catalog-options';
 import './node-graph-manager.scss';
 
 interface Props { lang: Language; visible?: boolean; onDirtyChange?: (dirty: boolean) => void }
@@ -190,6 +190,7 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
   const setMessage = (text: string, error = false): void => setNotice({ text, error });
   const [optionSnapshot, setOptionSnapshot] = useState<OptionSnapshot | null>(null);
   const optionRequest = useRef(0);
+  const catalogReloadRequest = useRef(0);
   const [packageGeneration, setPackageGeneration] = useState(0);
   const [busy, setBusy] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -333,14 +334,15 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
     return () => { window.clearInterval(statusTimer); window.clearInterval(readinessTimer); };
   }, [visible]);
   useEffect(() => {
-    const reloadCatalog = (): void => { optionRequest.current += 1; setOptionSnapshot(null); setPackageGeneration((value) => value + 1); void Promise.all([getNodeTypes(), getNodeSets(), getNodeGraph()]).then(([catalog, sets, document]) => {
+    const reloadCatalog = (): void => { const requestId = ++catalogReloadRequest.current; optionRequest.current += 1; setOptionSnapshot(null); setPackageGeneration((value) => value + 1); void Promise.all([getNodeTypes(), getNodeSets(), getNodeGraph()]).then(([catalog, sets, document]) => {
+      if (!catalogReloadIsCurrent(requestId, catalogReloadRequest.current)) return;
       setTypes(catalog.types); setDataTypes(catalog.data_types || []); setPrimitiveSpecs(catalog.primitive_specs || []); setNodeSets(sets.sets); setSetKey(''); setSetValues({}); setSetPreview(null);
       setReadOnlyReason(document.revision === revision
         ? nodeGraphReadOnlyReason({ ...document, graph: graph || document.graph }, catalog.types)
         : 'Saved graph revision changed; refresh before editing.');
-    }).catch((error: unknown) => { setReadOnlyReason('Graph compatibility could not be checked.'); setMessage(error instanceof Error ? error.message : String(error)); }); };
+    }).catch((error: unknown) => { if (catalogReloadIsCurrent(requestId, catalogReloadRequest.current)) { setReadOnlyReason('Graph compatibility could not be checked.'); setMessage(error instanceof Error ? error.message : String(error)); } }); };
     window.addEventListener('isosui:packages-changed', reloadCatalog);
-    return () => window.removeEventListener('isosui:packages-changed', reloadCatalog);
+    return () => { window.removeEventListener('isosui:packages-changed', reloadCatalog); catalogReloadRequest.current += 1; };
   }, [graph, revision]);
   useEffect(() => { if (!graph) return; const key = graphLayoutKey(graph); const timer = window.setTimeout(() => localStorage.setItem(key, JSON.stringify(positions)), 250); return () => window.clearTimeout(timer); }, [graph?.robot.id, positions]);
   useEffect(() => { if (graph) localStorage.setItem(graphMirrorKey(graph), JSON.stringify(mirrors)); }, [graph?.robot.id, mirrors]);

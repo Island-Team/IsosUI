@@ -8,6 +8,10 @@ export function optionResponseIsCurrent(requestId: number, latestRequestId: numb
   return requestId === latestRequestId && requestedDraft === currentDraft;
 }
 
+export function catalogReloadIsCurrent(requestId: number, latestRequestId: number): boolean {
+  return requestId === latestRequestId;
+}
+
 export function pairedDeviceSettings(settings: Record<string, unknown>, value: string): Record<string, unknown> {
   return { ...settings, device_id: value, simulator_node: value };
 }

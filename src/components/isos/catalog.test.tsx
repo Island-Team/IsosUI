@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CatalogBrowser } from './CatalogBrowser';
 import { CatalogSelector, settingOptionGroup, unavailableSelections } from './CatalogSelector';
-import { catalogSelectionBlocks, optionResponseIsCurrent, pairedDeviceSettings } from './catalog-options';
+import { catalogReloadIsCurrent, catalogSelectionBlocks, optionResponseIsCurrent, pairedDeviceSettings } from './catalog-options';
 import { catalogTypeKey, type NodeOptions, type NodeTypeDefinition, type SettingOptionGroup } from '../../services/isos/node-graph';
 
 const group: SettingOptionGroup = { node_path: 'eos/process/mujoco/simulator', setting: 'scene', selected: 'pick-place', options: [
@@ -63,6 +63,19 @@ describe('P03 catalog options', () => {
     expect(accepted).not.toHaveBeenCalled();
     expect(optionResponseIsCurrent(2, latest, 'new draft', 'new draft')).toBe(true);
     expect(optionResponseIsCurrent(1, 2, 'same draft', 'same draft')).toBe(false);
+  });
+
+  it('discards an older package catalog reload that resolves last', async () => {
+    let resolveOld!: (value: string) => void;
+    const old = new Promise<string>((resolve) => { resolveOld = resolve; });
+    let generation = 1;
+    const published: string[] = [];
+    const pending = old.then((catalog) => { if (catalogReloadIsCurrent(1, generation)) published.push(catalog); });
+    generation = 2;
+    if (catalogReloadIsCurrent(2, generation)) published.push('new catalog');
+    resolveOld('old catalog');
+    await pending;
+    expect(published).toEqual(['new catalog']);
   });
 
   it('blocks an absent required scene and an unavailable selected scene', () => {
