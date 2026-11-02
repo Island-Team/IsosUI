@@ -1,0 +1,7 @@
+# U03 workspace panel contract
+
+IsosUI owns browser-local layout only. The persisted key is `isosui:workspace:v1:<robot-id>` and contains `{version: 1, panels}`. Each of `control`, `monitor`, `vision`, and `logs` has `open`, `collapsed`, `docked` booleans and finite pixel `x`, `y`, `width`, `height`, `z` numbers. Invalid or older values reset to defaults. Load and viewport resize clamp geometry. The robot ID comes from IsOS's saved graph. Layout never changes graph bytes or grants command authority.
+
+One persistent EOS workbench owns the live control, monitor and Vision projections across Graph/EOS navigation. One Logs consumer owns the P07 cursor. Dock/collapse keeps panel content mounted; close hides Control while keeping its current-run command record in memory and unmounts Logs so reopen must recheck IsOS status and current scope. A hidden or collapsed Monitor, Vision or Logs panel does not poll or stream; the control panel pauses automatic result reads while hidden. All data remains fenced by owner run and active revision.
+
+The fixed workspace strip displays connection state and active revision from IsOS and always exposes IsOS Stop. Stop intent fences Invoke and result follow-up synchronously across panels and pages. Only IsOS's typed Stop response can label Stop confirmed; unknown or failed Stop remains visible as such. EOS owner results remain separate from Stop outcome. The A03 correlated event replay is the final dependent integration gate.

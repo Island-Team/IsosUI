@@ -8,7 +8,7 @@
 2. 运行 `isos serve`，打开 `/en/isos` 或 `/cn/isos`。Home 显示管理器设置、已安装包收据、核心就绪状态、进程状态与全部来源日志。API 离线应显示阻塞原因，而非空图。
 3. 在 IsOS 中安装或链接精确的 `island/mujoco-sim@0.1.1`。在 Graph 选择 `sim-hardware` 节点集，预览新增节点并选择场景。在 Graph 中按 **core → layer → group → node type** 浏览。通过 `/node-options` 中 `eos/process/mujoco/simulator` 的可搜索选项选择场景，再按各相机／底盘／机械臂的精确 `node_path` 选择设备。一次设备选择同时写入 `adapter.settings.device_id` 和 `adapter.settings.simulator_node`。
 4. 选中节点，分别阅读注册类型描述和可编辑的实例描述，并配置类型声明的字段。搜索所有者提供的选项名称与说明，查看已保存但不可用的 ID 及修复原因。更改场景或软件包后，等待当前草稿的设备选项刷新，再尝试应用；连接兼容的输出和输入端口，然后在“高级操作”中选择 **Check graph**。若连线高亮，选中它：检查器显示来源/目标类型 ID、IDL 字段单位，以及该输入端口的 IsOS 拒绝代码、路径和原因。“诊断”区域保留完整服务器结果。修正端口或节点设置后再次检查；修改草稿会使上次检查结果过期。检查器里的部署状态与节点实时健康分开，后者可在 EOS 监视器查看。确认检查通过后，再用 Graph 主操作保存并运行修订。由服务器验证、应用图；浏览器草稿本身不能控制 EOS。
-5. 等待 Home 显示就绪，再打开 EOS 控制与监视。只有活动图声明的节点才显示控制。当前 Graph 的 View 菜单可浮动整个 EOS 或 EGIA 窗口；Vision、控制、监视和日志尚不能分别浮动。
+5. 等待 Home 显示就绪，再打开 EOS 控制与监视。只有活动图声明的节点才显示控制。工作区工具栏可分别打开控制、监视、Vision 和日志面板；Graph 的 View 菜单打开同一个持久 EOS 控制面板。EGIA 仍使用 Graph 核心窗口。
 6. 若启动前失败，打开 Home Logs。固定的管理器会话锚点显示首条软件包或 Apply 故障，即使详情筛选隐藏了该来源。启动后，面板固定本次运行的首条就绪或故障事件。可按来源、级别、节点路径或关联 ID 筛选后续详情行，锚点仍可见。将运行 ID 和关联 ID 用于 EOS／EGIA 排查。实时就绪及保存／活动修订以 Home 状态为准；活动修订过期会阻止实时控制。
 7. 通过 IsOS 停止部署。升级时安装精确的新包版本，预览节点、检查图、应用新修订并重启；保留旧图和包收据以便恢复。
 
@@ -24,7 +24,7 @@
 
 ## 当前 R07 模拟底盘控制
 
-[R07 浏览器原语客户端](interfaces/browser-results_cn.md)已合并，并验证一个受管理 `mock-cxx` 底盘绑定。[共享 R07 记录](https://github.com/Island-Team/Island-eos/blob/refactor%28v2%29/runtime-main/docs/island/implementation-todo.md)记录了一次操作员点击：同一命令 ID 经历 `Sending`、`InProgress` 和持久化 `OutcomeUnknown`；同运行已确认 Stop 及结果围栏也通过。这是限定于模拟底盘的首次使用；R07 重放范围限于模拟底盘；U04 现已提供逐绑定控件，M5 发布重放仍未完成。其最小 EOS 卡选择一个合格的活动 `base.velocity` 绑定，显示图解析的 base 目标及有界 `body_velocity` 字段，只在操作员点击 Invoke 后发送 `primitive_typed`。受管理模拟重放验证了这条路径；真实 MuJoCo 运动仍由 R06 把关。记录 IsOS 运行 ID 和相等的保存／活动修订，取得 EOS 单调时间，浏览器本地 `sending` 期间持续显示生成的命令 ID。EOS 返回 `InProgress` 时，只有 IsOS 仍报告同一运行中的部署，才用该 ID 和修订读取有界公开 `result` 操作。精确显示 `Completed`、`Failed`、`Cancelled`、`Rejected`、`InProgress` 或 `OutcomeUnknown`；桥接离线、旧运行或修订过期都显示不可用，绝不当成成功。发送超时后不重发命令。打开无筛选的 Home 当前运行日志；只有 EOS 所有者事件提供与命令对应的有效关联 ID，才能预填关联筛选。命令 ID 单独显示。即使 EOS 离线，IsOS 部署 Stop 仍须可用。逐绑定控件和图信息卡见下文；U03 负责独立浮动面板布局。
+[R07 浏览器原语客户端](interfaces/browser-results_cn.md)已合并，并验证一个受管理 `mock-cxx` 底盘绑定。[共享 R07 记录](https://github.com/Island-Team/Island-eos/blob/refactor%28v2%29/runtime-main/docs/island/implementation-todo.md)记录了一次操作员点击：同一命令 ID 经历 `Sending`、`InProgress` 和持久化 `OutcomeUnknown`；同运行已确认 Stop 及结果围栏也通过。这是限定于模拟底盘的首次使用；R07 重放范围限于模拟底盘；U04 现已提供逐绑定控件，M5 发布重放仍未完成。其最小 EOS 卡选择一个合格的活动 `base.velocity` 绑定，显示图解析的 base 目标及有界 `body_velocity` 字段，只在操作员点击 Invoke 后发送 `primitive_typed`。受管理模拟重放验证了这条路径；真实 MuJoCo 运动仍由 R06 把关。记录 IsOS 运行 ID 和相等的保存／活动修订，取得 EOS 单调时间，浏览器本地 `sending` 期间持续显示生成的命令 ID。EOS 返回 `InProgress` 时，只有 IsOS 仍报告同一运行中的部署，才用该 ID 和修订读取有界公开 `result` 操作。精确显示 `Completed`、`Failed`、`Cancelled`、`Rejected`、`InProgress` 或 `OutcomeUnknown`；桥接离线、旧运行或修订过期都显示不可用，绝不当成成功。发送超时后不重发命令。打开无筛选的 Home 当前运行日志；只有 EOS 所有者事件提供与命令对应的有效关联 ID，才能预填关联筛选。命令 ID 单独显示。即使 EOS 离线，IsOS 部署 Stop 仍须可用。逐绑定控件和图信息卡见下文。U03 提供持久工作区面板。
 
 ### 使用受管理模拟底盘首次运行 R07
 
@@ -55,3 +55,9 @@ Graph 首先显示可搜索的注册类型库。选中类型时显示非空的**
 ## U04 节点卡与原语控制
 
 鼠标悬停或键盘聚焦 Graph 节点，也可轻触信息按钮，查看独立的目录类型与实例描述、类型化端口以及 EOS 所有者报告的健康状态。Escape 或关闭按钮退出视口内的信息卡。在 EOS 中，每个受支持的活动 `@v0.1` 底盘或机械臂绑定都有独立控制卡。检查图解析的唯一目标、原语、单位和限值；更改目标须编辑并 Apply 节点图。等待已知 IsOS 运行、相等的保存／活动修订及 EOS 就绪健康状态。仅点击一次调用。浏览器显示发送中时保留命令 ID，随后显示 EOS 的精确状态。`InProgress` 仅用同一 ID 经授权的公开结果读取跟进；丢失响应绝不重新提交。EOS 控制失败时仍可通过 IsOS 停止部署。参见 [U04 契约](interfaces/primitive-control_cn.md)。
+
+## U03 首次使用：工作区面板
+
+打开节点图，通过工作区工具栏分别显示控制、监控、视觉和日志面板。每个面板都可以停靠、浮动、收起或关闭。拖动浮动面板标题可以移动；聚焦右下角手柄后可用方向键调整大小。窄屏时面板堆叠显示。上方固定区域始终显示 IsOS 连接状态、运行中修订和“停止部署”。即使 EOS 离线，也可以通过 IsOS 请求停止。
+
+在控制面板调用原语后，切换页面、停靠或收起面板时，命令 ID 与所有者结果仍保留。点击“停止部署”会立即阻止本次运行的新调用和结果跟踪；停止结果不明时，界面不会显示为停止成功。关闭或收起监控与视觉面板会暂停轮询或视频流。日志面板停靠或收起时保留本次运行的不透明游标并暂停跟踪；关闭后重新打开会重新检查 IsOS 状态与日志范围。布局按机器人保存在本机，并限制在当前视口内。参见[工作面板契约](interfaces/workspace-panels_cn.md)。A03 的关联恢复事件回放仍是 M4 的最终集成门槛。
