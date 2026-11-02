@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { applyNodeGraph, controlProcesses, getCoreReadiness, previewBackendLink, getInstalledPackages, getLogPage, getNodeOptions, getNodeSets, installBackend, linkBackend, nodeGraphReadOnlyReason, previewNodeSet, validateNodeGraph, type NodeGraph, type NodeSetDefinition, type NodeTypeDefinition } from './node-graph';
+import { applyNodeGraph, controlProcesses, stopProcesses, getCoreReadiness, previewBackendLink, getInstalledPackages, getLogPage, getNodeOptions, getNodeSets, installBackend, linkBackend, nodeGraphReadOnlyReason, previewNodeSet, validateNodeGraph, type NodeGraph, type NodeSetDefinition, type NodeTypeDefinition } from './node-graph';
 import { request } from './api-client';
 
 vi.mock('./api-client', () => ({ request: vi.fn() }));
@@ -71,6 +71,12 @@ describe('IsOS v1 graph and process API', () => {
       ['/node-graph', 'PUT', { schema_version: 1, revision: 'saved-revision', graph }],
       ['/process-control', 'POST', { schema_version: 1, operation: 'run', revision: 'saved-revision' }],
     ]);
+  });
+  it('keeps Stop on its separate terminal reply route', async () => {
+    const reply = { stopped: ['eos'], terminal: { run_id: 'r1', outcome: 'confirmed', reason_code: null, processes: [] } };
+    vi.mocked(request).mockClear().mockResolvedValue(reply);
+    expect(await stopProcesses()).toEqual(reply);
+    expect(vi.mocked(request).mock.calls).toEqual([['/process-control', 'POST', { schema_version: 1, operation: 'stop' }]]);
   });
 });
 

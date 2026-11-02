@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { applyNodeGraph, controlProcesses, getBackends, getInstalledPackages, getNodeGraph, getNodeTypes, getProcessStatus, getSetupStatus, getCoreReadiness, previewBackendLink, graphWithBackendScene, installBackend, linkBackend, nodeGraphHasEditableShape, nodeGraphReadOnlyReason, requiredBackend, validateNodeGraph, type BackendPackage, type InstalledPackage, type NodeGraph, type ProcessStatus, type SetupStatus, type CoreReadiness, type LinkPreview } from '@/services/isos/node-graph';
+import { applyNodeGraph, controlProcesses, stopProcesses, getBackends, getInstalledPackages, getNodeGraph, getNodeTypes, getProcessStatus, getSetupStatus, getCoreReadiness, previewBackendLink, graphWithBackendScene, installBackend, linkBackend, nodeGraphHasEditableShape, nodeGraphReadOnlyReason, requiredBackend, validateNodeGraph, type BackendPackage, type InstalledPackage, type NodeGraph, type ProcessStatus, type SetupStatus, type CoreReadiness, type LinkPreview } from '@/services/isos/node-graph';
 import { IsosLogsPanel } from './IsosLogsPanel';
 import { IsosApiError } from '@/services/isos/api-client';
+import { stopReplyFeedback, stopFailureFeedback, type StopFeedback } from './stop-feedback';
 import type { Language } from '@/types';
 import './workbench.scss';
 
@@ -31,6 +32,7 @@ export function IsosHome({ lang, onOpenGraph, graphDirty }: Props): React.ReactE
   const [previewIssue, setPreviewIssue] = useState('');
   const [logsOpen, setLogsOpen] = useState(() => new URLSearchParams(window.location.search).get('logs') === '1');
   const [message, setMessage] = useState('');
+  const [stopOutcome, setStopOutcome] = useState<StopFeedback | null>(null);
   const [busy, setBusy] = useState(false);
   const refresh = useCallback(async (): Promise<void> => {
     try {
@@ -60,7 +62,19 @@ export function IsosHome({ lang, onOpenGraph, graphDirty }: Props): React.ReactE
   const control = async (operation: 'run' | 'stop' | 'restart'): Promise<void> => {
     if (operation !== 'stop' && readOnlyReason) return;
     setBusy(true);
-    try { await controlProcesses(operation, operation === 'stop' ? undefined : revision); await refresh(); }
+    if (operation === 'stop') {
+      const before = status;
+      setStopOutcome({ text: lang === 'cn' ? '正在停止…' : 'Stopping…', alert: false });
+      try {
+        const reply = await stopProcesses();
+        setStopOutcome(stopReplyFeedback(reply, before, lang));
+        try { setStatus(await getProcessStatus()); } catch { /* Preserve the known Stop outcome. */ }
+      } catch (error) { setStopOutcome(stopFailureFeedback(error, lang)); }
+      finally { setBusy(false); }
+      return;
+    }
+    setStopOutcome(null);
+    try { await controlProcesses(operation, revision); await refresh(); }
     catch (error) {
       if (error instanceof IsosApiError && error.code === 'log_scope_publish_failed') {
         await refresh();
@@ -102,6 +116,7 @@ export function IsosHome({ lang, onOpenGraph, graphDirty }: Props): React.ReactE
   return <main className="isos-home">
     <header className="isos-home__heading"><div><p className="isos-eyebrow">IsOS · Aether v2</p><h1>{copy.title}</h1><p>{copy.subtitle}</p></div><div className="isos-home__actions"><button type="button" onClick={() => void refresh()} disabled={busy}>{copy.refresh}</button><button type="button" onClick={onOpenGraph}>{copy.graph}</button><button type="button" aria-expanded={logsOpen} onClick={() => setLogsOpen((open) => !open)}>{copy.logs}</button></div></header>
     {message && <p role="alert" className="isos-home__message">{message}</p>}
+    {stopOutcome && <p role={stopOutcome.alert ? 'alert' : 'status'} className="isos-home__message">{stopOutcome.text}</p>}
     {readOnlyReason && <p role="alert" className="isos-home__notice">{lang === 'cn' ? '只读节点图：' : 'Read-only graph: '}{readOnlyReason}</p>}
     <section className="isos-home__overview" aria-label={copy.state}><div><span>{copy.state}</span><strong>{status?.state || (status ? (status.processes.length ? 'running' : 'stopped') : '—')}</strong></div><div><span>{copy.saved}</span><code>{savedRevision || '—'}</code></div><div><span>{copy.active}</span><code>{status?.active_revision || '—'}</code></div></section>
     {status?.active_revision && status.active_revision !== savedRevision && <p role="status" className="isos-home__notice">{copy.pending}</p>}

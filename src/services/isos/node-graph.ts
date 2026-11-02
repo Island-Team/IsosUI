@@ -56,6 +56,9 @@ export interface ProcessStatus {
   run_id_state?: 'none' | 'known' | 'unavailable';
   processes: { id: string; pid?: number; restarts: number; state?: string; last_error?: string | null }[];
 }
+/** Stop is a terminal owner reply, not a process-status snapshot. */
+export interface StopTerminal { run_id: string; outcome: 'confirmed' | 'unknown'; reason_code: string | null; processes: { id: string; outcome: 'confirmed' | 'unknown'; reason_code: string | null }[] }
+export interface StopControlReply { stopped: string[]; terminal: StopTerminal | null }
 export interface BackendPackage { id: string; version: string; linked: boolean; scenes: string[]; devices: string[]; ready: boolean; issues: string[] }
 export interface InstalledPackage { schema_version: 1; id: string; version: string; source_commit: string | null; asset_sha256: string | null; local_link: string | null }
 export interface NodeSetDefinition {
@@ -206,8 +209,11 @@ export function linkBackend(id: string, version: string, path: string, manifest?
   return request('/packages/link', 'POST', { id, version, path, ...(manifest ? { manifest } : {}) });
 }
 export function getSetupStatus(): Promise<SetupStatus> { return request('/setup-status'); }
-export function controlProcesses(operation: 'run' | 'stop' | 'restart', revision?: string): Promise<ProcessStatus> {
+export function controlProcesses(operation: 'run' | 'restart', revision?: string): Promise<ProcessStatus> {
   return request('/process-control', 'POST', { schema_version: 1, operation, ...(revision ? { revision } : {}) });
+}
+export function stopProcesses(): Promise<StopControlReply> {
+  return request<StopControlReply>('/process-control', 'POST', { schema_version: 1, operation: 'stop' });
 }
 export function getCoreReadiness(): Promise<CoreReadiness> { return request('/core-readiness'); }
 export function previewBackendLink(path: string, manifest?: string): Promise<LinkPreview> {

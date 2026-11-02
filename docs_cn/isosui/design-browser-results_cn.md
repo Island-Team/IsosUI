@@ -29,3 +29,9 @@ R07 呈现一个最小活动 base 绑定卡，显示图解析目标及四个有�
 [夹具矩阵](../../tests/fixtures/browser_results/cases.json)固定类型化发送、结果读取、所有者结果、运行／修订、离线、日志入口与 Stop 转换。实现测试须用模拟 EOS 桥接和 IsOS 状态服务验证精确公开请求体、无授权、唯一活动绑定与目标、载荷字节长度、安全单调期限、六种状态、运行变更后的迟到响应、首次发送超时但不重发运动、一次仅一个读取、隐藏页暂停、六十秒上限、`unknown command ID` 不透明、桥接 502/503、修订过期、损坏结果及 IsOS Stop 可用性。浏览器组件测试须证明 EOS 离线且活动修订不符时 Stop 仍可用。本地与托管构建均须通过 `npm test` 和 `npm run build`。跨所有者首次使用重放须使用受管理的模拟适配器 IsOS 保存／活动运行、EOS 桥接、真实 `primitive_typed` 响应及 `InProgress` 后续查询，随后 Stop 并查看当前运行日志。真实 MuJoCo 运动仍由 R06 把关。R07 与 U04 须待各自证据及独立实现审查后才能关闭。
 
 此修订设计运行 `python3 tests/fixtures/browser_results/check.py`，46 个唯一发送／读取／状态用例与六种状态均通过；相对链接检查覆盖十二个修改的中英文设计及夹具页面；`git diff --check` 也通过。完整输出位于被 Git 忽略的 `logs/test/20261102-r07-isosui-design-revision/`。实现前仍需独立设计审查。
+
+## Stop 终态显示修正
+
+R07 实际重放发现 EOS 卡从 IsOS Stop `{stopped,terminal}` 响应中读取不存在的 `result.state`，工作台也将该响应当作 `ProcessStatus` 保存。独立的 `stopProcesses()` 服务类型消除了这两种混淆。共用的运行时解码器在显示确认前验证完整终态、固定原因代码和点击时捕获的运行 ID。Home、Graph、EOS 对等待、确认、未知、未确认及响应不可用使用相同语义。EOS 卡点击 Stop 时立即隔离未完成的结果读取；各 Stop 路径在响应后重新读取 `/process-status`，状态刷新失败也保留 Stop 结果。组件测试覆盖 EOS 离线与修订过期、迟到结果、未知及传输故障；纯测试覆盖 null、缺失、损坏和运行不匹配的终态证据。本分支的完整检查命令及输出位于 `logs/test/20261102-stop-terminal-display/`。
+
+独立审查还要求重复的终态子进程 ID 必须拒绝确认、`terminal:null` 且 `stopped` 非空必须保持未确认、明确的 `IsosApiError` 拒绝须保留所有者身份。这些情况在共用解码器和挂载 EOS 卡中有负向测试；三个 Stop 入口共用相同的错误呈现。
