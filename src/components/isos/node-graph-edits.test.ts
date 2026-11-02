@@ -44,6 +44,8 @@ describe('v1 node graph edits', () => {
     expect(node.adapter).toBeUndefined();
     expect(node.movement).toBeUndefined();
     expect(node.observation).toBeUndefined();
+    expect(node.settings).toBeUndefined();
+    expect(node.capabilities).toBeUndefined();
   });
 
   it('connects only matching typed ports and admits one source per input', () => {

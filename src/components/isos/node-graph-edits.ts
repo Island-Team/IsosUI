@@ -54,9 +54,12 @@ function nodeSlot(graph: NodeGraph, path: string): { nodes: Record<string, NodeI
 }
 
 export function makeNode(id: string, definition: NodeTypeDefinition): NodeInstance {
-  const node: NodeInstance = { id, node_type: definition.id, label: id, description: '', capabilities: [], settings: {}, inputs: {} };
+  const node: NodeInstance = { id, node_type: definition.id, label: id, description: '' };
   // Target types receive required values from the operator or a verified node set.
   if (definition.id.endsWith('@v0.1')) return node;
+  node.capabilities = [];
+  node.settings = {};
+  node.inputs = {};
   if (definition.lifecycle === 'adapter') {
     node.frame_id = `${id}_frame`;
     node.adapter = { type: 'mock-cxx' };
