@@ -20,6 +20,11 @@ describe('graph reader compatibility', () => {
     expect(nodeGraphReadOnlyReason({ revision: 'saved', graph }, null)).toContain('catalog is unavailable');
     expect(nodeGraphReadOnlyReason({ revision: 'saved', graph }, [knownType])).toBeNull();
   });
+  it('rejects a registered type ID at an unregistered placement', () => {
+    const misplaced = structuredClone(graph);
+    misplaced.cores.eos.layers.dispatcher.groups.control.nodes.command.node_type = knownType.id;
+    expect(nodeGraphReadOnlyReason({ revision: 'saved', graph: misplaced }, [{ ...knownType, group: 'different' }])).toContain('Unsupported node type');
+  });
 
   it('keeps a future graph tree in raw inspection when its shape is unknown', () => {
     const future = { version: '0.2.0', robot: { id: 'test', name: 'Test' }, domains: {} } as unknown as NodeGraph;
@@ -129,5 +134,12 @@ describe('readiness and local bundle preview API', () => {
       ['/packages/preview-link', 'POST', { path: '/opt/mujoco', manifest: '/opt/mujoco/release.json' }],
       ['/node-options', 'POST', { schema_version: 1, graph }],
     ]);
+  });
+  it('retains P03 setting groups and draft revision metadata', async () => {
+    const graph: NodeGraph = { version: '0.1.0', robot: { id: 'test', name: 'Test' }, cores: {} };
+    const reply = { adapter_families: [], primitive_bindings: [], targets: [], graph_revision: null, read_only: false, setting_options: [{ node_path: 'eos/process/mujoco/simulator', setting: 'scene', selected: 'pick-place', options: [{ value: 'pick-place', label: 'Pick and place', description: 'Scene', available: false, reason_code: 'package_changed', reason: 'Relink release' }] }] };
+    vi.mocked(request).mockClear().mockResolvedValueOnce(reply);
+    expect(await getNodeOptions(graph)).toEqual(reply);
+    expect(vi.mocked(request).mock.calls).toEqual([['/node-options', 'POST', { schema_version: 1, graph }]]);
   });
 });

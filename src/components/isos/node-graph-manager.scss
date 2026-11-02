@@ -35,6 +35,10 @@
 .node-graph-library { border-right: 1px solid var(--border); }
 .node-graph-side { border-left: 1px solid var(--border); }
 .node-graph-library > p { color: var(--text-secondary); font-size: .8rem; }
+.node-graph-catalog-browser, .node-graph-catalog-selector { display: grid; gap: 8px; }
+.node-graph-catalog-browser p, .node-graph-catalog-selector small { margin: 0; color: var(--text-secondary); font-size: .76rem; line-height: 1.4; overflow-wrap: anywhere; }
+.node-graph-catalog-selector { padding: 8px; border: 1px solid var(--border); border-radius: 6px; }
+.node-graph-catalog-selector [role='alert'] { color: var(--error); }
 .node-graph-legend { display: flex; flex-wrap: wrap; gap: 5px; padding: 9px; border: 1px solid var(--border); border-radius: 7px; }
 .node-graph-legend h3 { flex-basis: 100%; margin: 0 0 4px; }
 .node-graph-legend span { display: inline-flex; align-items: center; gap: 5px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: .66rem; }
@@ -157,6 +161,7 @@
 .node-graph-inspector { display: flex; flex-direction: column; gap: 10px; }
 .node-graph-hardware-fields { display: grid; gap: 0; padding-top: 8px; border-top: 1px solid var(--border); }
 .node-graph-inspector > label, .node-graph-hardware-fields > label { position: relative; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.node-graph-setting__metadata { color: var(--text-secondary); font-size: .72rem; line-height: 1.4; }
 .node-graph-setting__hint { position: absolute; z-index: 4; top: calc(100% - 3px); left: 0; width: min(300px, 80vw); padding: 8px 10px; color: var(--text); background: var(--bg-elevated); border: 1px solid var(--primary); border-radius: $radius-sm; box-shadow: var(--shadow-md); opacity: 0; visibility: hidden; pointer-events: none; }
 .node-graph-setting:hover .node-graph-setting__hint, .node-graph-setting:focus-within .node-graph-setting__hint { opacity: 1; visibility: visible; }
 .node-graph-setting input::placeholder, .node-graph-setting textarea::placeholder { color: var(--text-tertiary); font-size: .72rem; }

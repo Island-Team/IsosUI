@@ -3,16 +3,20 @@ import { request } from './api-client';
 /** One registered node type. Placement belongs to this definition, not an instance setting. */
 export interface NodeTypeDefinition {
   id: string;
+  description?: string;
   core: string;
   layer: string;
   group: string;
   kind: 'camera' | 'base' | 'manipulator' | 'software';
   lifecycle: 'internal' | 'process' | 'adapter';
   capabilities: string[];
-  settings: { name: string; data_type: 'string' | 'positive_integer' | 'nonnegative_integer' | 'string_array' | 'string_table'; required: boolean; description?: string; unit?: string; min?: number; max?: number; choices?: string[] }[];
+  settings: { name: string; data_type: 'string' | 'positive_integer' | 'nonnegative_integer' | 'string_array' | 'string_table'; required: boolean; description?: string; unit?: string; min?: number; max?: number; choices?: string[]; selector?: { provider: 'package' | 'registry' | 'graph'; resource: string; package_from?: string } }[];
   inputs: PortDefinition[];
   outputs: PortDefinition[];
   safety_adapter_type?: string | null;
+}
+export function catalogTypeKey(type: Pick<NodeTypeDefinition, 'core' | 'layer' | 'group' | 'id'>): string {
+  return JSON.stringify([type.core, type.layer, type.group, type.id]);
 }
 export interface PortDefinition { name: string; data_type: string; required: boolean; cardinality?: 'one' | 'many'; description?: string; expected_rate_hz?: number | null; transport?: 'in_process' | 'unix_socket' | 'websocket' | 'ros2' | string; data_class?: string }
 export interface DataSchema { title?: string; description?: string; type?: string; properties?: Record<string, { type?: string; description?: string; 'x-unit'?: string; minimum?: number; maximum?: number }>; required?: string[]; [key: string]: unknown }
@@ -31,7 +35,7 @@ export interface NodeInstance {
   references?: string[];
   frame_id?: string;
   joint_names?: string[];
-  adapter?: { type: string; settings?: Record<string, unknown> };
+  adapter?: { type: string; package?: { id: string; version: string }; settings?: Record<string, unknown> };
   health_timing?: { poll_interval_ms: number; stale_after_ms: number };
   observation?: { max_rate_hz: number; max_payload_bytes: number };
   movement?: { modes: string[]; limits: Record<string, number> };
@@ -84,7 +88,9 @@ export interface LinkPreview { id: string; version: string; ready: boolean; issu
 export interface AdapterFamilyOption { id: string; device_kinds: string[]; package?: { id: string; version: string }; compiled: boolean; transport: string; description: string; available: boolean; reason?: string }
 export interface PrimitiveBindingOption { node_type: string; device_kind: string; movement_types: string[]; available: boolean; reason?: string }
 export interface HardwareTargetOption { path: string; node_type: string; device_kind: string; adapter_type: string; movement_types: string[]; available: boolean; reason?: string }
-export interface NodeOptions { adapter_families: AdapterFamilyOption[]; primitive_bindings: PrimitiveBindingOption[]; targets: HardwareTargetOption[] }
+export interface SettingOption { value: string; label: string; description: string; available: boolean; reason_code: string | null; reason: string | null }
+export interface SettingOptionGroup { node_path: string; setting: string; selected: string | null; options: SettingOption[] }
+export interface NodeOptions { adapter_families: AdapterFamilyOption[]; primitive_bindings: PrimitiveBindingOption[]; targets: HardwareTargetOption[]; setting_options?: SettingOptionGroup[]; graph_revision?: string | null; read_only?: boolean }
 export interface PrimitiveSpec { name: string; version: string; device_class: string; movement_type: string; description: string }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -140,12 +146,12 @@ export function nodeGraphReadOnlyReason(document: NodeGraphDocument, types: Node
   if (!nodeGraphHasEditableShape(document.graph)) return 'This graph structure cannot be edited by this IsosUI build.';
   if (document.graph.version !== '1.0.0' && document.graph.version !== '0.1.0') return `Unsupported graph version ${document.graph.version}.`;
   if (!types) return 'Node type catalog is unavailable.';
-  const known = new Set(types.map((type) => type.id));
+  const known = new Set(types.map(catalogTypeKey));
   for (const [coreId, core] of Object.entries(document.graph.cores)) {
     for (const [layerId, layer] of Object.entries(core.layers)) {
       for (const [groupId, group] of Object.entries(layer.groups)) {
         for (const [nodeId, node] of Object.entries(group.nodes)) {
-          if (!known.has(node.node_type)) return `Unsupported node type ${node.node_type} at ${coreId}/${layerId}/${groupId}/${nodeId}.`;
+          if (!known.has(catalogTypeKey({ core: coreId, layer: layerId, group: groupId, id: node.node_type }))) return `Unsupported node type ${node.node_type} at ${coreId}/${layerId}/${groupId}/${nodeId}.`;
         }
       }
     }
