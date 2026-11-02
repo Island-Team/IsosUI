@@ -11,7 +11,7 @@ import { stopReplyFeedback, stopFailureFeedback, type StopFeedback } from './sto
 
 interface Reading { status?: AdapterStatus; statusAt?: number; health?: { state: string }; healthAt?: number }
 interface Props { lang: Language; graph: NodeGraphDocument | null; status: ProcessStatus | null; dirty: boolean; readOnly: boolean; bindingPath?: string; typeDescriptions?: Record<string, string>;
-  readings: Record<string, Reading>; clock: number; onStop: (status: ProcessStatus) => void; onOpenLogs: () => void }
+  readings: Record<string, Reading>; clock: number; stopFenced?: boolean; isStopFenced?: () => boolean; onStopIntent?: (runId: string | null) => void; onStop: (status: ProcessStatus) => void; onOpenLogs: () => void }
 const copy = {
   en: { title: 'Active primitive bindings', missing: 'No supported active @v0.1 primitive binding has exactly one target.', gated: 'Invoke requires a current managed run, one healthy target and valid typed arguments.', invoke: 'Invoke', stop: 'Stop deployment', stopping: 'Stopping…', logs: 'Current run logs', refresh: 'Refresh result', command: 'Command ID', revision: 'Active revision', binding: 'Binding', target: 'Target', result: 'Owner status', sending: 'Sending (browser)', following: 'In progress', unavailable: 'Unavailable', oldRun: 'Unavailable for this run', paused: 'In progress; automatic reads paused', updated: 'Last update', stopStatus: 'IsOS stop status', lease: 'Lease', invalid: 'Enter values within the hardware limits.' },
   cn: { title: '活动原语绑定', missing: '没有恰好一个目标的受支持活动 @v0.1 原语绑定。', gated: '调用需要当前受管运行、单一健康目标和有效的类型化参数。', invoke: '调用', stop: '停止部署', stopping: '正在停止…', logs: '当前运行日志', refresh: '刷新结果', command: '命令 ID', revision: '活动修订', binding: '绑定', target: '目标', result: '所有者状态', sending: '发送中（浏览器）', following: '执行中', unavailable: '不可用', oldRun: '不适用于本次运行', paused: '仍在执行；自动读取已暂停', updated: '最近更新', stopStatus: 'IsOS 停止状态', lease: '有效期', invalid: '参数超出硬件限值。' },
@@ -19,7 +19,7 @@ const copy = {
 function errorText(error: unknown): { kind: 'transport' | 'owner' | 'protocol' | 'validation'; message: string } {
   return error instanceof ResultClientError ? { kind: error.kind, message: error.message } : { kind: 'transport', message: 'Service unavailable.' };
 }
-export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, bindingPath, typeDescriptions, readings, clock, onStop, onOpenLogs }: Props): React.ReactElement {
+export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, bindingPath, typeDescriptions, readings, clock, stopFenced = false, isStopFenced, onStopIntent, onStop, onOpenLogs }: Props): React.ReactElement {
   const c = copy[lang];
   const bindings = graph ? resolvePrimitiveBindings(graph.graph) : [];
   const binding = bindings.find((candidate) => candidate.path === bindingPath) || (!bindingPath ? bindings[0] : undefined);
@@ -30,8 +30,8 @@ export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, bindin
   const [stoppedRunId, setStoppedRunId] = useState<string | null>(null);
   const [stopping, setStopping] = useState(false);
   const generation = useRef(0);
-  const graphFlags = useRef({ dirty, readOnly });
-  graphFlags.current = { dirty, readOnly };
+  const graphFlags = useRef({ dirty, readOnly, stopFenced });
+  graphFlags.current = { dirty, readOnly, stopFenced };
   const controller = useRef<AbortController | null>(null);
   const inFlight = useRef<number | null>(null);
   const sequence = useRef(0);
@@ -50,7 +50,7 @@ export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, bindin
     if (fence !== 'current') seal(current, fence);
   }, [status?.run_id, status?.run_id_state, status?.saved_revision, status?.active_revision, status?.state]);
   const targetLive = binding && monitorBadge(readings[binding.targetPath], clock) === 'live';
-  const canInvoke = Boolean(binding && targetLive && graph && sendFence(graph.revision, status, dirty, readOnly) && status?.run_id !== stoppedRunId && value.type === binding.mode && movementValid(value, binding.target) && record?.phase !== 'sending' && !stopping);
+  const canInvoke = Boolean(binding && targetLive && graph && sendFence(graph.revision, status, dirty, readOnly) && !stopFenced && !isStopFenced?.() && status?.run_id !== stoppedRunId && value.type === binding.mode && movementValid(value, binding.target) && record?.phase !== 'sending' && !stopping);
   const follow = async (manual = false): Promise<void> => {
     const current = recordRef.current;
     if (!current || inFlight.current !== null || !current.submitAttempted || current.phase === 'sending' || current.phase === 'terminal' || (current.result && terminalResult(current.result.status)) || current.error?.kind === 'old_run' ||
@@ -91,10 +91,10 @@ export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, bindin
     update(fresh);
     try {
       const [saved, process] = await Promise.all([getNodeGraph(), getProcessStatus(abort.signal)]);
-      if (token !== generation.current || !sendFence(saved.revision, process, graphFlags.current.dirty, graphFlags.current.readOnly) || saved.revision !== fresh.activeRevision || !resolvePrimitiveBindings(saved.graph).some((candidate) => candidate.path === binding.path && candidate.targetPath === binding.targetPath && candidate.mode === binding.mode && candidate.primitiveName === binding.primitiveName)) throw new ResultClientError('validation', 'Active graph or run changed.');
+      if (token !== generation.current || graphFlags.current.stopFenced || isStopFenced?.() || !sendFence(saved.revision, process, graphFlags.current.dirty, graphFlags.current.readOnly) || saved.revision !== fresh.activeRevision || !resolvePrimitiveBindings(saved.graph).some((candidate) => candidate.path === binding.path && candidate.targetPath === binding.targetPath && candidate.mode === binding.mode && candidate.primitiveName === binding.primitiveName)) throw new ResultClientError('validation', 'Active graph or run changed.');
       const eosTime = await eosMonotonicTime(abort.signal);
       const beforeSend = await getProcessStatus(abort.signal);
-      if (token !== generation.current || graphFlags.current.dirty || graphFlags.current.readOnly || resultFence(fresh, beforeSend) !== 'current') throw new ResultClientError('validation', 'Active run changed before send.');
+      if (token !== generation.current || graphFlags.current.dirty || graphFlags.current.readOnly || graphFlags.current.stopFenced || isStopFenced?.() || resultFence(fresh, beforeSend) !== 'current') throw new ResultClientError('validation', 'Active run changed before send.');
       sequence.current += 1;
       const result = await sendPrimitive(binding, fresh.activeRevision, commandId, sequence.current, eosTime, value, abort.signal,
         () => update({ ...fresh, submitAttempted: true }));
@@ -105,6 +105,7 @@ export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, bindin
   };
   const stop = async (): Promise<void> => {
     const before = status;
+    onStopIntent?.(before?.run_id || null);
     setStoppedRunId(before?.run_id || null);
     if (recordRef.current) seal(recordRef.current, 'old_run'); else cancel();
     setStopping(true); setStopResult({ text: c.stopping, alert: false });

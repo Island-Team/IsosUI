@@ -342,3 +342,31 @@ it('invokes one active arm binding with typed payload and preserves a Failed own
   expect(container.textContent).toContain('adapter failed');
   await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals(); graphRead = graph;
 });
+
+it('fences every binding immediately after Stop intent and keeps them fenced through unknown Stop and status outage', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  statusState = { ...process, active_revision: revision };
+  statusRead = async () => { throw new Error('status offline'); };
+  const two = JSON.parse(JSON.stringify(graph)) as NodeGraphDocument;
+  two.graph.cores.eos.layers.dispatcher.groups.base.nodes.second = { ...two.graph.cores.eos.layers.dispatcher.groups.base.nodes.velocity, id: 'second' };
+  two.graph.cores.eos.layers.hardware.groups.base.nodes.other = { ...two.graph.cores.eos.layers.hardware.groups.base.nodes.drive, id: 'other', inputs: { command: [{ node: 'eos/dispatcher/base/second', output: 'command' }] } };
+  let finish!: (value: StopControlReply) => void;
+  stopMock.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  const container = document.createElement('div'); document.body.appendChild(container); const root = createRoot(container);
+  const { PrimitiveBaseCard } = await import('./PrimitiveBaseCard');
+  function Pair(): React.ReactElement {
+    const [fencedRun, setFencedRun] = React.useState<string | null>(null);
+    return <>{['velocity', 'second'].map((name) => <PrimitiveBaseCard key={name} lang="en" bindingPath={`eos/dispatcher/base/${name}`} graph={two} status={statusState} dirty={false} readOnly={false}
+      readings={{ ...ready(), 'eos/hardware/base/other': { status: { state: 'ready' }, statusAt: Date.now(), health: { state: 'healthy' }, healthAt: Date.now() } }} clock={Date.now()}
+      stopFenced={fencedRun === statusState.run_id} onStopIntent={setFencedRun} onStop={() => undefined} onOpenLogs={() => undefined} />)}</>;
+  }
+  await act(async () => root.render(<Pair />));
+  const invokes = (): HTMLButtonElement[] => [...container.querySelectorAll('button')].filter((button) => button.textContent === 'Invoke');
+  expect(invokes()).toHaveLength(2); expect(invokes().every((button) => !button.disabled)).toBe(true);
+  await act(async () => [...container.querySelectorAll('button')].find((button) => button.textContent === 'Stop deployment')!.click());
+  expect(invokes().every((button) => button.disabled)).toBe(true);
+  await act(async () => finish({ stopped: ['eos'], terminal: { run_id: 'run-a', outcome: 'unknown', reason_code: 'eos_stop_unconfirmed', processes: [{ id: 'eos', outcome: 'unknown', reason_code: 'eos_stop_unconfirmed' }] } }));
+  expect(invokes().every((button) => button.disabled)).toBe(true);
+  expect(container.textContent).toContain('Stop outcome unknown');
+  await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals(); statusRead = async () => statusState;
+});
