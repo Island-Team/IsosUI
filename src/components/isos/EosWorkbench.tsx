@@ -11,7 +11,7 @@ import './eos-workbench.scss';
 import { WorkspacePanel } from './WorkspacePanel';
 import type { WorkspaceLayout, Surface, PanelLayout } from './workspace-layout';
 
-interface Props { lang: Language; onOpenGraph: () => void; onOpenLogs?: () => void; graphDirty: boolean; layout?: WorkspaceLayout; viewport?: { width: number; height: number }; onPanelChange?: (name: Surface, patch: Partial<PanelLayout>) => void; onRobot?: (id: string) => void; onStatus?: (status: ProcessStatus | null) => void; onConnectionError?: (message: string) => void; isRunStopFenced?: (runId: string | null) => boolean; onRunStopIntent?: (runId: string | null) => void; onStopOutcome?: (feedback: { text: string; alert: boolean }) => void }
+interface Props { lang: Language; onOpenGraph: () => void; onOpenLogs?: () => void; graphDirty: boolean; layout?: WorkspaceLayout; viewport?: { width: number; height: number }; onPanelChange?: (name: Surface, patch: Partial<PanelLayout>) => void; onRobot?: (id: string) => void; onStatus?: (status: ProcessStatus | null) => void; onConnectionError?: (message: string) => void; isRunStopFenced?: (runId: string | null) => boolean; onRunStopIntent?: (runId: string | null) => void; onStopOutcome?: (feedback: { text: string; alert: boolean }, terminalRun?: string | null) => void }
 interface Health { state: string; code?: string | null; message?: string | null }
 interface Reading { status?: AdapterStatus; statusAt?: number; health?: Health; healthAt?: number; observation?: Record<string, unknown>; observationAt?: number; error?: string }
 const COPY = {
@@ -169,11 +169,11 @@ export function EosWorkbench({ lang, onOpenGraph, onOpenLogs, graphDirty, layout
       processAvailable = true;
       setTypeDescriptions(Object.fromEntries((catalog?.types || []).map((type) => [type.id, type.description || ''])));
       setReadOnlyReason(nodeGraphReadOnlyReason(graph, catalog?.types || null));
-      setGraphDoc((current) => nodeGraphHasEditableShape(graph.graph) ? current?.revision === graph.revision ? current : graph : null); setStatus(process); onStatus?.(process); onConnectionError?.(''); onRobot?.(nodeGraphHasEditableShape(graph.graph) ? graph.graph.robot.id : 'unknown'); setError('');
+      setGraphDoc((current) => nodeGraphHasEditableShape(graph.graph) ? current?.revision === graph.revision ? current : graph : null); setStatus(process); onStatus?.(process); onRobot?.(nodeGraphHasEditableShape(graph.graph) ? graph.graph.robot.id : 'unknown'); setError('');
       if (!nodeGraphReadOnlyReason(graph, catalog?.types || null) && activeGraphIsCurrent(graph.revision, process.active_revision)) {
         const found = await eosRequest<EosControlReply & { nodes: EosDiscoveryNode[] }>({ op: 'discover' });
-        setDiscovery(found.nodes);
-      } else { setDiscovery([]); setReadings({}); }
+        setDiscovery(found.nodes); onConnectionError?.('');
+      } else { setDiscovery([]); setReadings({}); onConnectionError?.(''); }
     } catch (reason) { const message = reason instanceof Error ? reason.message : String(reason); setError(message); setReadOnlyReason('Graph compatibility could not be checked.'); setDiscovery([]); if (!processAvailable) onStatus?.(null); onConnectionError?.(message); }
   }, [onStatus, onRobot, onConnectionError]);
   useEffect(() => { void refresh(); const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refresh(); }, 5000); return () => window.clearInterval(timer); }, [refresh]);

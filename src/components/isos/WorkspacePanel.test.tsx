@@ -22,5 +22,9 @@ it('keeps a collapsed panel mounted, restores focus controls and supports keyboa
   expect(container.querySelector('input')?.value).toBe('ui-123');
   await act(async () => root.render(<WorkspacePanel title="Control" lang="en" layout={layout} viewport={{ width: 800, height: 600 }} onChange={onChange}><input aria-label="Pending command" defaultValue="new" /></WorkspacePanel>));
   expect(container.querySelector('input')?.value).toBe('ui-123');
+  await act(async () => root.render(<WorkspacePanel title="Control" lang="en" layout={layout} viewport={{ width: 390, height: 640 }} onChange={onChange}><input aria-label="Pending command" defaultValue="new" /></WorkspacePanel>));
+  expect([...container.querySelectorAll('button')].find((button) => button.textContent === 'Dock')).toBeDefined();
+  await act(async () => root.render(<WorkspacePanel title="Control" lang="en" layout={{ ...layout, docked: true }} viewport={{ width: 390, height: 640 }} onChange={onChange}><input aria-label="Pending command" defaultValue="new" /></WorkspacePanel>));
+  expect([...container.querySelectorAll('button')].find((button) => button.textContent === 'Float')?.disabled).toBe(true);
   await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals();
 });

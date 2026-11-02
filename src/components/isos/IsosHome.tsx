@@ -11,7 +11,7 @@ const COPY = {
   cn: { title: '运行概览', subtitle: '配置节点图后启动 EOS，由 EOS 监管已准入的后端。', refresh: '刷新', packages: '后端软件包', installed: '已安装的软件包', noInstalled: '尚未安装或链接软件包。', linkedSource: '本地链接', archiveSource: '已安装归档', packageId: '软件包 ID', packageVersion: '版本', manifestPath: '发布清单路径（可选）', preview: '检查本地软件包', previewReady: '软件包已验证', previewMissing: '输入绝对路径以检查软件包清单。', coreReadiness: '核心构建与启动就绪状态', notConfigured: '未配置程序路径', filesChanged: '已配置文件发生变化', configured: '已配置路径', compatible: '兼容', graphConfigured: '节点图配置已生成', running: '运行中', noPackages: '尚未安装或链接后端软件包。', required: '节点图所需', missing: '缺少此精确版本。旧版本不能满足节点图要求。', linked: '所需版本已就绪。', sceneMismatch: '节点图中的场景不属于此软件包。', chooseScene: '选择软件包场景', applyScene: '验证并应用场景', sceneApplied: '场景已保存到节点图。重启后启用新修订。', sceneInvalid: '节点图验证失败。请前往节点图页面查看诊断。', localBundle: '本地软件包目录', link: '链接本地软件包', catalog: '从目录安装', packageDone: '软件包已添加。请打开节点图预览并添加其节点集。', scenes: '场景', devices: '设备', ready: '就绪', attention: '需要处理', setup: '配置检查', noIssues: '已报告的检查均通过。', processes: '受管进程', noProcesses: '没有运行中的进程。', run: '运行', stop: '停止', restart: '重启', logs: '日志', saved: '已保存修订', active: '运行中修订', state: '状态', lastError: '最近错误', graph: '编辑节点图', pending: '已保存修订与运行中修订不同。重启后生效。', unsaved: '节点图有未应用的修改。请先在节点图页面应用，再运行。', unavailable: '无法连接 IsOS。请在本机启动后刷新。', scopePublish: '子进程启动前日志范围发布失败，正在重新检查状态与当前日志。', loading: '加载中…' },
 } as const;
 
-interface Props { lang: Language; onOpenGraph: () => void; graphDirty: boolean; onOpenLogs?: () => void; onStopIntent?: (runId: string | null) => void; onStopOutcome?: (feedback: { text: string; alert: boolean }) => void }
+interface Props { lang: Language; onOpenGraph: () => void; graphDirty: boolean; onOpenLogs?: () => void; onStopIntent?: (runId: string | null) => void; onStopOutcome?: (feedback: { text: string; alert: boolean }, terminalRun?: string | null) => void }
 export function IsosHome({ lang, onOpenGraph, graphDirty, onOpenLogs, onStopIntent, onStopOutcome }: Props): React.ReactElement {
   const copy = COPY[lang];
   const [revision, setRevision] = useState('');
@@ -68,7 +68,7 @@ export function IsosHome({ lang, onOpenGraph, graphDirty, onOpenLogs, onStopInte
       setStopOutcome({ text: lang === 'cn' ? '正在停止…' : 'Stopping…', alert: false });
       try {
         const reply = await stopProcesses();
-        const feedback = stopReplyFeedback(reply, before, lang); setStopOutcome(feedback); onStopOutcome?.(feedback);
+        const feedback = stopReplyFeedback(reply, before, lang); setStopOutcome(feedback); onStopOutcome?.(feedback, reply.terminal?.run_id || null);
         try { setStatus(await getProcessStatus()); } catch { /* Preserve the known Stop outcome. */ }
       } catch (error) { const feedback = stopFailureFeedback(error, lang); setStopOutcome(feedback); onStopOutcome?.(feedback); }
       finally { setBusy(false); }

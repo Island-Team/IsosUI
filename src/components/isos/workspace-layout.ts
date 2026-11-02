@@ -9,9 +9,9 @@ export function defaultWorkspaceLayout(): WorkspaceLayout {
 }
 
 export function clampPanel(panel: PanelLayout, viewport: { width: number; height: number }): PanelLayout {
-  const width = Math.min(Math.max(320, panel.width), Math.max(320, viewport.width - 16));
-  const height = Math.min(Math.max(240, panel.height), Math.max(240, viewport.height - 16));
-  return { ...panel, width, height, z: Math.max(1, Math.min(90, panel.z)), x: Math.max(0, Math.min(panel.x, Math.max(0, viewport.width - width))), y: Math.max(0, Math.min(panel.y, Math.max(0, viewport.height - 48))) };
+  const width = Math.min(Math.max(320, panel.width), Math.max(1, viewport.width - 16));
+  const height = Math.min(Math.max(240, panel.height), Math.max(1, viewport.height - 16));
+  return { ...panel, width, height, z: Math.max(1, Math.min(90, panel.z)), x: Math.max(0, Math.min(panel.x, Math.max(0, viewport.width - width))), y: Math.max(0, Math.min(panel.y, Math.max(0, viewport.height - height))) };
 }
 
 export function layoutKey(robotId: string): string { return `isosui:workspace:v${LAYOUT_VERSION}:${robotId}`; }

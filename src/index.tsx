@@ -6,6 +6,7 @@ import { WorkspacePanel } from '@/components/isos/WorkspacePanel';
 import { clampPanel, defaultWorkspaceLayout, layoutKey, readWorkspaceLayout, SURFACES, type PanelLayout, type Surface, type WorkspaceLayout } from '@/components/isos/workspace-layout';
 import { getProcessStatus, stopProcesses, type ProcessStatus } from '@/services/isos/node-graph';
 import { stopFailureFeedback, stopReplyFeedback } from '@/components/isos/stop-feedback';
+import { beginRunStopFence, observeRunStopFence, settleRunStopFence, type RunStopFence } from '@/components/isos/run-stop-fence';
 import '@/components/isos/workbench.scss';
 import type { Language } from '@/types';
 import { installBrowserErrorLogging } from '@/services/isos/browser-logs';
@@ -53,20 +54,46 @@ function App(): React.ReactElement {
   const [connectionError, setConnectionError] = useState('');
   const [stopFeedback, setStopFeedback] = useState('');
   const [stopAlert, setStopAlert] = useState(false);
-  const stopRun = useRef<string | null>(null);
-  const onStatus = useCallback((next: ProcessStatus | null): void => { setStatus(next); if (next) setConnectionError(''); else setConnectionError(lang === 'cn' ? 'IsOS 连接失败' : 'IsOS connection unavailable'); }, [lang]);
+  const statusRef = useRef<ProcessStatus | null>(null);
+  const stopFence = useRef<RunStopFence | null>(null);
+  const [stopFenceEpoch, setStopFenceEpoch] = useState(0);
+  const onStatus = useCallback((next: ProcessStatus | null): void => { statusRef.current = next; setStatus(next); if (!next) setConnectionError(lang === 'cn' ? 'IsOS 连接失败' : 'IsOS connection unavailable'); }, [lang]);
   const onConnectionError = useCallback((message: string): void => setConnectionError(message), []);
   const onRobot = useCallback((id: string): void => { setRobotId(id || 'unknown'); }, []);
-  const onStopIntent = useCallback((runId: string | null): void => { stopRun.current = runId || 'unknown'; setStopFeedback(lang === 'cn' ? '停止请求已发送；等待 IsOS 确认。' : 'Stop requested; waiting for IsOS confirmation.'); setStopAlert(false); }, [lang]);
-  const onStopOutcome = useCallback((feedback: { text: string; alert: boolean }): void => { setStopFeedback(feedback.text); setStopAlert(feedback.alert); }, []);
-  const isRunStopFenced = useCallback((runId: string | null): boolean => Boolean(stopRun.current && (stopRun.current === runId || stopRun.current === 'unknown')), []);
+  const onStopIntent = useCallback((runId: string | null): void => { stopFence.current = beginRunStopFence(runId, statusRef.current, stopFence.current); setStopFenceEpoch((value) => value + 1); setStopFeedback(lang === 'cn' ? '停止请求已发送；等待 IsOS 确认。' : 'Stop requested; waiting for IsOS confirmation.'); setStopAlert(false); }, [lang]);
+  const onStopOutcome = useCallback((feedback: { text: string; alert: boolean }, terminalRun: string | null = null): void => { if (stopFence.current) { stopFence.current = settleRunStopFence(stopFence.current, terminalRun); setStopFenceEpoch((value) => value + 1); } if (stopFence.current?.phase === 'pending') { setStopFeedback(lang === 'cn' ? '仍有停止请求待确认。' : 'A Stop request is still pending.'); setStopAlert(false); } else { setStopFeedback(feedback.text); setStopAlert(feedback.alert); } }, [lang]);
+  const isRunStopFenced = useCallback((_runId: string | null): boolean => stopFence.current !== null, []);
   const updatePanel = useCallback((name: Surface, patch: Partial<PanelLayout>): void => { setLayout((current) => ({ ...current, [name]: clampPanel({ ...current[name], ...patch, z: patch.z === undefined ? current[name].z : Math.min(90, Math.max(...SURFACES.map((item) => current[item].z)) + 1) }, { width: window.innerWidth, height: window.innerHeight }) })); }, []);
   const openPanel = useCallback((name: Surface): void => updatePanel(name, { open: true, collapsed: false }), [updatePanel]);
   useEffect(() => { const next = readWorkspaceLayout(robotId, { width: window.innerWidth, height: window.innerHeight }); if (new URLSearchParams(window.location.search).get('logs') === '1') next.logs.open = true; setLayout(next); setLayoutRobot(robotId); }, [robotId]);
   useEffect(() => { if (robotId !== 'unknown' && robotId === layoutRobot) localStorage.setItem(layoutKey(robotId), JSON.stringify({ version: 1, panels: layout })); }, [layout, robotId, layoutRobot]);
   useEffect(() => { const resize = (): void => { const next = { width: window.innerWidth, height: window.innerHeight }; setViewport(next); setLayout((current) => Object.fromEntries(SURFACES.map((name) => [name, clampPanel(current[name], next)])) as WorkspaceLayout); }; window.addEventListener('resize', resize); return () => window.removeEventListener('resize', resize); }, []);
-  useEffect(() => { if (status?.state === 'running' && status.run_id && stopRun.current && stopRun.current !== 'unknown' && status.run_id !== stopRun.current) { stopRun.current = null; setStopFeedback(''); } }, [status?.run_id, status?.state]);
-  const stopDeployment = async (): Promise<void> => { const before = status; onStopIntent(before?.run_id || null); try { const reply = await stopProcesses(); const feedback = stopReplyFeedback(reply, before, lang); onStopOutcome(feedback); try { onStatus(await getProcessStatus()); } catch { onStatus(null); } } catch (error) { onStopOutcome(stopFailureFeedback(error, lang)); } };
+  useEffect(() => {
+    const fence = stopFence.current;
+    if (!fence || fence.phase !== 'settled') return;
+    let disposed = false;
+    let pending = false;
+    const poll = async (): Promise<void> => {
+      if (disposed || pending || document.visibilityState !== 'visible') return;
+      pending = true;
+      try {
+        const fresh = await getProcessStatus();
+        if (disposed || stopFence.current !== fence) return;
+        onStatus(fresh);
+        const next = observeRunStopFence(fence, fresh);
+        stopFence.current = next;
+        if (!next) { setStopFeedback(''); setStopAlert(false); setStopFenceEpoch((value) => value + 1); }
+        else if (next !== fence) { setStopFenceEpoch((value) => value + 1); }
+      } catch { /* An unavailable owner identity keeps the Stop fence. */ }
+      finally { pending = false; }
+    };
+    void poll();
+    const timer = window.setInterval(() => { void poll(); }, 3000);
+    const onVisible = (): void => { if (document.visibilityState === 'visible') void poll(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { disposed = true; window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
+  }, [stopFenceEpoch, onStatus]);
+  const stopDeployment = async (): Promise<void> => { const before = status; onStopIntent(before?.run_id || null); try { const reply = await stopProcesses(); const feedback = stopReplyFeedback(reply, before, lang); onStopOutcome(feedback, reply.terminal?.run_id || null); try { onStatus(await getProcessStatus()); } catch { onStatus(null); } } catch (error) { onStopOutcome(stopFailureFeedback(error, lang)); } };
   type Page = 'home' | 'graph' | 'eos' | 'egia';
   const [page, setPage] = useState<Page>(() => {
     const segment = new URLSearchParams(window.location.search).get('page');

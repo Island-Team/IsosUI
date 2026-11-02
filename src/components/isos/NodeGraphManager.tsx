@@ -18,6 +18,7 @@ import { clampInfoCard } from './node-info-card';
 import { getNodeLive } from '@/services/eos/node-live';
 import { processRunFeedback } from './process-run-feedback';
 import { stopReplyFeedback, stopFailureFeedback } from './stop-feedback';
+import { requestRunStop } from './run-stop-fence';
 import { browserLog } from '@/services/isos/browser-logs';
 import { draftValidationStamp, validationDisplayIsCurrent, validationResponseIsCurrent, type DraftValidationStamp } from './draft-validation';
 import { CatalogSelector, settingOptionGroup } from './CatalogSelector';
@@ -25,7 +26,7 @@ import { CatalogBrowser } from './CatalogBrowser';
 import { catalogReloadGraph, catalogReloadIsCurrent, catalogSelectionBlocks, optionResponseIsCurrent, pairedDeviceSettings, type OptionSnapshot } from './catalog-options';
 import './node-graph-manager.scss';
 
-interface Props { lang: Language; visible?: boolean; onDirtyChange?: (dirty: boolean) => void; onOpenPanel?: (name: 'control' | 'logs') => void; onStopIntent?: (runId: string | null) => void; onStopOutcome?: (feedback: { text: string; alert: boolean }) => void }
+interface Props { lang: Language; visible?: boolean; onDirtyChange?: (dirty: boolean) => void; onOpenPanel?: (name: 'control' | 'logs') => void; onStopIntent?: (runId: string | null) => void; onStopOutcome?: (feedback: { text: string; alert: boolean }, terminalRun?: string | null) => void }
 interface FlowData { entry: GraphNode; error: boolean; mirrored: boolean; lang: Language; liveAllowed: boolean; liveRunId: string | null; dataTypes: DataTypeDefinition[] }
 const COPY = {
   en: { nodeSets: 'Package node sets', previewRemoves: 'Package preview would remove existing nodes. Edit the graph explicitly before adding this set.', noNodeSets: 'No installed package offers a node set.', chooseSet: 'Choose a node set', previewSet: 'Preview nodes', addSet: 'Add previewed nodes', previewCount: 'nodes will be added', previewStale: 'The graph changed. Preview the set again.', title: 'Node graph', connect: 'Connect to local IsOS', add: 'Add node', refresh: 'Refresh', validate: 'Check graph', apply: 'Save graph', saved: 'Graph saved and core configuration generated. Restart to use this revision.', valid: 'Graph is valid.', dirty: 'Unsaved changes', clean: 'Saved', catalog: 'Node library', inspector: 'Node configuration', diagnostics: 'Diagnostics', noSelection: 'Select a node to edit it.', selectedCount: 'nodes selected', noNodes: 'Add a registered node type to start.', id: 'Node ID', label: 'Label', description: 'Description', settings: 'Settings', gui: 'Show MuJoCo window when EOS starts this backend', details: 'Hardware and advanced fields (JSON)', applyDetails: 'Apply fields', remove: 'Remove node', capabilities: 'Capabilities', source: 'Source', target: 'Target', invalid: 'Invalid JSON object.', duplicate: 'Node ID already exists or is invalid.', port: 'Connect matching typed ports by dragging from an output to an input.', robot: 'Robot', name: 'Name', lifecycle: 'Lifecycle', type: 'Type', disconnected: 'IsOS node graph API is unavailable.', stale: 'Graph changed on the server. Refresh and retry.', discard: 'Discard unsaved changes?', choose: 'Choose a type', process: 'Process status', noStatus: 'Process status is not available from this IsOS build.', search: 'Search types', undo: 'Undo', redo: 'Redo', disconnect: 'Disconnect line', hint: 'Left drag selects nodes; middle drag pans. Right-click to add or disconnect. Delete removes selected nodes.', savedRevision: 'Saved', activeRevision: 'Active' },
@@ -514,12 +515,13 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange, onOpenPa
   const stop = async (): Promise<void> => {
     if (busy) return;
     const before = processStatus;
+    const request = requestRunStop(before, onStopIntent, stopProcesses);
     setBusy(true);
     setMessage(lang === 'cn' ? '正在停止…' : 'Stopping…');
     try {
-      const reply = await stopProcesses();
+      const reply = await request;
       const feedback = stopReplyFeedback(reply, before, lang);
-      setMessage(feedback.text, feedback.alert); onStopOutcome?.(feedback);
+      setMessage(feedback.text, feedback.alert); onStopOutcome?.(feedback, reply.terminal?.run_id || null);
       try { setProcessStatus(await getProcessStatus()); } catch { /* Keep the Stop outcome visible. */ }
     } catch (error) { const feedback = stopFailureFeedback(error, lang); setMessage(feedback.text, feedback.alert); onStopOutcome?.(feedback); }
     finally { setBusy(false); }

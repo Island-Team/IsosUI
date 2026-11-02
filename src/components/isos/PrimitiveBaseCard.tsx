@@ -11,7 +11,7 @@ import { stopReplyFeedback, stopFailureFeedback, type StopFeedback } from './sto
 
 interface Reading { status?: AdapterStatus; statusAt?: number; health?: { state: string }; healthAt?: number }
 interface Props { lang: Language; graph: NodeGraphDocument | null; status: ProcessStatus | null; dirty: boolean; readOnly: boolean; bindingPath?: string; typeDescriptions?: Record<string, string>;
-  readings: Record<string, Reading>; clock: number; visible?: boolean; stopFenced?: boolean; isStopFenced?: () => boolean; onStopIntent?: (runId: string | null) => void; onStopOutcome?: (feedback: StopFeedback) => void; onStop: (status: ProcessStatus) => void; onOpenLogs: () => void }
+  readings: Record<string, Reading>; clock: number; visible?: boolean; stopFenced?: boolean; isStopFenced?: () => boolean; onStopIntent?: (runId: string | null) => void; onStopOutcome?: (feedback: StopFeedback, terminalRun?: string | null) => void; onStop: (status: ProcessStatus) => void; onOpenLogs: () => void }
 const copy = {
   en: { title: 'Active primitive bindings', missing: 'No supported active @v0.1 primitive binding has exactly one target.', gated: 'Invoke requires a current managed run, one healthy target and valid typed arguments.', invoke: 'Invoke', stop: 'Stop deployment', stopping: 'Stopping…', logs: 'Current run logs', refresh: 'Refresh result', command: 'Command ID', revision: 'Active revision', binding: 'Binding', target: 'Target', result: 'Owner status', sending: 'Sending (browser)', following: 'In progress', unavailable: 'Unavailable', oldRun: 'Unavailable for this run', paused: 'In progress; automatic reads paused', updated: 'Last update', stopStatus: 'IsOS stop status', lease: 'Lease', invalid: 'Enter values within the hardware limits.' },
   cn: { title: '活动原语绑定', missing: '没有恰好一个目标的受支持活动 @v0.1 原语绑定。', gated: '调用需要当前受管运行、单一健康目标和有效的类型化参数。', invoke: '调用', stop: '停止部署', stopping: '正在停止…', logs: '当前运行日志', refresh: '刷新结果', command: '命令 ID', revision: '活动修订', binding: '绑定', target: '目标', result: '所有者状态', sending: '发送中（浏览器）', following: '执行中', unavailable: '不可用', oldRun: '不适用于本次运行', paused: '仍在执行；自动读取已暂停', updated: '最近更新', stopStatus: 'IsOS 停止状态', lease: '有效期', invalid: '参数超出硬件限值。' },
@@ -115,7 +115,7 @@ export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, bindin
     setStopping(true); setStopResult({ text: c.stopping, alert: false });
     try {
       const result = await stopProcesses();
-      const feedback = stopReplyFeedback(result, before, lang); setStopResult(feedback); onStopOutcome?.(feedback);
+      const feedback = stopReplyFeedback(result, before, lang); setStopResult(feedback); onStopOutcome?.(feedback, result.terminal?.run_id || null);
       try { onStop(await getProcessStatus()); } catch { /* The known Stop outcome remains visible. */ }
     } catch (error) { const feedback = stopFailureFeedback(error, lang); setStopResult(feedback); onStopOutcome?.(feedback); }
     finally { setStopping(false); }
