@@ -49,7 +49,8 @@ export interface NodeGraph {
 }
 export interface NodeGraphDocument { revision: string; graph: NodeGraph; read_only?: boolean; diagnostics?: NodeGraphDiagnostic[] }
 export interface NodeGraphDiagnostic { path: string; code?: string; message: string }
-export interface NodeGraphValidation { valid: boolean; diagnostics: NodeGraphDiagnostic[] }
+export interface ValidatedEdge { path: string; source: string; target: string; input: string; route_class: string; fixed: boolean; qos_eligible: boolean; routed: boolean; priority: number; frequency_hz?: number; data_type: string; transport: string }
+export interface NodeGraphValidation { valid: boolean; diagnostics: NodeGraphDiagnostic[]; edges?: ValidatedEdge[] }
 export interface ProcessStatus {
   schema_version: '1.0.0';
   saved_revision?: string;

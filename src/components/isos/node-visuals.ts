@@ -51,10 +51,10 @@ export function portVisual(port: PortDefinition): { className: string; style: Re
 }
 
 /** Anchor shape is transport, anchor color is exact type, line pattern is frequency. */
-export function interfaceVisual(port?: PortDefinition): { className: string; style: Record<string, string>; label: string } {
-  const rate = port?.expected_rate_hz;
+export function interfaceVisual(port?: PortDefinition, edgeCap?: number): { className: string; style: Record<string, string>; label: string } {
+  const rate = edgeCap;
   const transport = (port?.transport || 'in_process').toLowerCase().replace(/[^a-z0-9_-]/g, '-');
-  return { className: `node-graph-edge-frequency--${frequencyPattern(rate)}`, style: { '--wire': '#64748b' }, label: `${typeof rate === 'number' && rate > 0 ? `${rate} Hz` : 'Rate unknown'} · ${transport} · ${port?.data_type || 'unknown type'}` };
+  return { className: `node-graph-edge-frequency--${rate === undefined ? 'unlimited' : frequencyPattern(rate)}`, style: { '--wire': '#64748b' }, label: `${typeof rate === 'number' && rate > 0 ? `${rate} Hz cap` : 'Unlimited cap'} · ${transport} · ${port?.data_type || 'unknown type'}` };
 }
 
 export function nodeSummary(definition: NodeTypeDefinition | undefined, node: NodeInstance): string[] {
