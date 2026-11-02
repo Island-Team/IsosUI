@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import ReactFlow, { Background, Handle, MiniMap, Position, ReactFlowProvider, SelectionMode, type Connection, type Edge, type Node, type NodeChange, type NodeProps, type ReactFlowInstance } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { catalogTypeKey, type NodeOptions, type PrimitiveSpec, controlProcesses, stopProcesses, getBackends, getNodeGraph, getNodeSets, getNodeTypes, getProcessStatus, getCoreReadiness, getNodeOptions, nodeGraphHasEditableShape, nodeGraphReadOnlyReason, previewNodeSet, validateNodeGraph, type BackendPackage, type CoreReadiness, type DataTypeDefinition, type NodeGraph, type NodeGraphDiagnostic, type NodeInstance, type NodeSetDefinition, type NodeSetPreview, type NodeTypeDefinition, type ProcessStatus, type ValidatedEdge } from '@/services/isos/node-graph';
@@ -15,6 +16,8 @@ import { edgeSource, updateEdgeQos, validatedSource } from './edge-qos';
 import { EdgeQosInspector } from './EdgeQosInspector';
 import { validatedApply } from './validated-apply';
 import { EgiaWorkbench } from './EgiaWorkbench';
+import { clampInfoCard } from './node-info-card';
+import { getNodeLive } from '@/services/eos/node-live';
 import { processRunFeedback } from './process-run-feedback';
 import { stopReplyFeedback, stopFailureFeedback } from './stop-feedback';
 import { browserLog } from '@/services/isos/browser-logs';
@@ -25,21 +28,48 @@ import { catalogReloadGraph, catalogReloadIsCurrent, catalogSelectionBlocks, opt
 import './node-graph-manager.scss';
 
 interface Props { lang: Language; visible?: boolean; onDirtyChange?: (dirty: boolean) => void }
-interface FlowData { entry: GraphNode; error: boolean; mirrored: boolean }
+interface FlowData { entry: GraphNode; error: boolean; mirrored: boolean; lang: Language; liveAllowed: boolean; liveRunId: string | null; dataTypes: DataTypeDefinition[] }
 const COPY = {
   en: { nodeSets: 'Package node sets', previewRemoves: 'Package preview would remove existing nodes. Edit the graph explicitly before adding this set.', noNodeSets: 'No installed package offers a node set.', chooseSet: 'Choose a node set', previewSet: 'Preview nodes', addSet: 'Add previewed nodes', previewCount: 'nodes will be added', previewStale: 'The graph changed. Preview the set again.', title: 'Node graph', connect: 'Connect to local IsOS', add: 'Add node', refresh: 'Refresh', validate: 'Check graph', apply: 'Save graph', saved: 'Graph saved and core configuration generated. Restart to use this revision.', valid: 'Graph is valid.', dirty: 'Unsaved changes', clean: 'Saved', catalog: 'Node library', inspector: 'Node configuration', diagnostics: 'Diagnostics', noSelection: 'Select a node to edit it.', selectedCount: 'nodes selected', noNodes: 'Add a registered node type to start.', id: 'Node ID', label: 'Label', description: 'Description', settings: 'Settings', gui: 'Show MuJoCo window when EOS starts this backend', details: 'Hardware and advanced fields (JSON)', applyDetails: 'Apply fields', remove: 'Remove node', capabilities: 'Capabilities', source: 'Source', target: 'Target', invalid: 'Invalid JSON object.', duplicate: 'Node ID already exists or is invalid.', port: 'Connect matching typed ports by dragging from an output to an input.', robot: 'Robot', name: 'Name', lifecycle: 'Lifecycle', type: 'Type', disconnected: 'IsOS node graph API is unavailable.', stale: 'Graph changed on the server. Refresh and retry.', discard: 'Discard unsaved changes?', choose: 'Choose a type', process: 'Process status', noStatus: 'Process status is not available from this IsOS build.', search: 'Search types', undo: 'Undo', redo: 'Redo', disconnect: 'Disconnect line', hint: 'Left drag selects nodes; middle drag pans. Right-click to add or disconnect. Delete removes selected nodes.', savedRevision: 'Saved', activeRevision: 'Active' },
   cn: { nodeSets: '软件包节点集', previewRemoves: '软件包预览会删除现有节点。请先明确编辑节点图，再添加此节点集。', noNodeSets: '已安装的软件包没有提供节点集。', chooseSet: '选择节点集', previewSet: '预览节点', addSet: '添加已预览节点', previewCount: '个节点将被添加', previewStale: '节点图已更改，请重新预览。', title: '节点图', connect: '连接本机 IsOS', add: '添加节点', refresh: '刷新', validate: '检查节点图', apply: '保存节点图', saved: '节点图已保存，核心配置已生成。重启后使用此修订。', valid: '节点图有效。', dirty: '未保存更改', clean: '已保存', catalog: '节点库', inspector: '节点配置', diagnostics: '诊断', noSelection: '选择节点后编辑配置。', selectedCount: '个节点已选中', noNodes: '添加已注册的节点类型以开始。', id: '节点 ID', label: '标签', description: '描述', settings: '设置', gui: 'EOS 启动此后端时显示 MuJoCo 窗口', details: '硬件与高级字段（JSON）', applyDetails: '应用字段', remove: '删除节点', capabilities: '能力', source: '来源', target: '目标', invalid: 'JSON 对象无效。', duplicate: '节点 ID 已存在或无效。', port: '从输出端口拖到类型相同的输入端口以连接。', robot: '机器人', name: '名称', lifecycle: '生命周期', type: '类型', disconnected: 'IsOS 节点图 API 不可用。', stale: '服务器上的图已更改。刷新后重试。', discard: '放弃未保存的更改？', choose: '选择类型', process: '进程状态', noStatus: '当前 IsOS 版本未提供进程状态。', search: '搜索类型', undo: '撤销', redo: '重做', disconnect: '断开连线', hint: '左键拖动框选节点，中键拖动平移。右键添加节点或断开连线。Delete 删除选中节点。', savedRevision: '已保存', activeRevision: '运行中' },
 } as const;
 
-function FlowNode({ data, selected }: NodeProps<FlowData>): React.ReactElement {
+export function FlowNode({ data, selected }: NodeProps<FlowData>): React.ReactElement {
   const { entry } = data;
   const summary = nodeSummary(entry.definition, entry.node);
-  return <div className={`node-graph-card${selected ? ' node-graph-card--selected' : ''}${data.error ? ' node-graph-card--error' : ''}${data.mirrored ? ' node-graph-card--mirrored' : ''}`} style={nodeVisualStyle(entry.definition) as React.CSSProperties} tabIndex={0} aria-label={`${entry.node.label || entry.node.id}: ${entry.node.node_type}`}>
+  const [open, setOpen] = useState(false);
+  const [location, setLocation] = useState({ left: 8, top: 8 });
+  const [live, setLive] = useState<{ status: string; health: string; at: number } | null>(null);
+  const [liveClock, setLiveClock] = useState(Date.now());
+  const hideTimer = useRef<number | null>(null);
+  const cardRef = useRef<HTMLElement | null>(null);
+  const place = (x: number, y: number): void => setLocation(clampInfoCard(x + 16, y + 16, 340, 340, window.innerWidth, window.innerHeight));
+  const show = (x: number, y: number): void => { if (hideTimer.current !== null) window.clearTimeout(hideTimer.current); place(x, y); setOpen(true); };
+  const hideSoon = (): void => { hideTimer.current = window.setTimeout(() => setOpen(false), 120); };
+  useEffect(() => () => { if (hideTimer.current !== null) window.clearTimeout(hideTimer.current); }, []);
+  useEffect(() => { if (!open || !data.liveAllowed || !/^eos\.hardware\.(camera|base|manipulator)@v0\.1$/.test(entry.node.node_type)) { setLive(null); return; }
+    let disposed = false; let pending = false;
+    const poll = async (): Promise<void> => {
+      const now = Date.now(); setLiveClock(now);
+      if (document.visibilityState !== 'visible') { setLive(null); return; }
+      if (pending) return;
+      pending = true;
+      try { const value = await getNodeLive(entry.path); if (!disposed) { const at = Date.now(); setLive({ ...value, at }); setLiveClock(at); } }
+      catch { if (!disposed) setLive(null); }
+      finally { pending = false; }
+    };
+    void poll(); const timer = window.setInterval(() => { void poll(); }, 2000);
+    return () => { disposed = true; window.clearInterval(timer); };
+  }, [open, data.liveAllowed, data.liveRunId, entry.path, entry.node.node_type]);
+  useEffect(() => { if (!open) return; const clamp = (): void => setLocation((value) => clampInfoCard(value.left, value.top, 340, 340, window.innerWidth, window.innerHeight)); window.addEventListener('resize', clamp); return () => window.removeEventListener('resize', clamp); }, [open]);
+  const labels = data.lang === 'cn' ? { info: '节点信息', type: '类型描述', instance: '实例描述', input: '输入', output: '输出', status: 'EOS 实时状态', stale: 'EOS 状态不可用或已过期', missing: '目录无描述（兼容版本）', close: '关闭' } : { info: 'Node information', type: 'Type description', instance: 'Instance description', input: 'Inputs', output: 'Outputs', status: 'EOS live status', stale: 'EOS status unavailable or stale', missing: 'No catalog description (compatibility version)', close: 'Close' };
+  return <div className={`node-graph-card${selected ? ' node-graph-card--selected' : ''}${data.error ? ' node-graph-card--error' : ''}${data.mirrored ? ' node-graph-card--mirrored' : ''}`} style={nodeVisualStyle(entry.definition) as React.CSSProperties} tabIndex={0} aria-label={`${entry.node.label || entry.node.id}: ${entry.node.node_type}`} onMouseEnter={(event) => show(event.clientX, event.clientY)} onMouseLeave={hideSoon} onFocus={(event) => { const bounds = event.currentTarget.getBoundingClientRect(); show(bounds.right, bounds.top); }} onBlur={(event) => { if (!cardRef.current?.contains(event.relatedTarget as globalThis.Node)) hideSoon(); }} onKeyDown={(event) => { if (event.key === 'Escape') { setOpen(false); event.stopPropagation(); } }}>
     <div className="node-graph-card__heading"><small>{entry.definition?.layer || 'Unknown layer'} / {entry.definition?.group || 'unknown'}</small><span>{entry.node.node_type.split('@').pop() || 'v1.0'}</span></div>
-    <strong>{entry.node.label || entry.node.id}</strong>
+    <strong>{entry.node.label || entry.node.id}</strong><button type="button" className="node-graph-card__info nodrag nowheel" aria-label={`${labels.info}: ${entry.node.label || entry.node.id}`} aria-expanded={open} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); const bounds = event.currentTarget.getBoundingClientRect(); show(bounds.right, bounds.top); }}>ⓘ</button>
     <div className="node-graph-card__badges"><span>{entry.definition?.core || 'unknown'}</span><span>{entry.definition?.kind || 'unknown'}</span>{entry.node.package && <span>{entry.node.package.id}@{entry.node.package.version}</span>}</div>
     <div className="node-graph-card__details" role="note"><code>{entry.node.id}</code><small>{entry.definition ? `${entry.definition.core} / ${entry.definition.layer} / ${entry.definition.group}` : 'Unknown type'}</small>{summary.length > 0 && <ul className="node-graph-card__summary">{summary.map((item) => <li key={item}>{item}</li>)}</ul>}</div>
     <div className="node-graph-card__ports"><div>{entry.definition?.inputs.map((port) => <div className={`node-graph-card__port ${portVisual(port).className}`} style={portVisual(port).style as React.CSSProperties} key={port.name}><Handle type="target" position={data.mirrored ? Position.Right : Position.Left} id={`in:${port.name}`} title={`${port.name}: ${port.data_type} · ${port.transport || 'in_process'}`} /><span>{port.name}{port.required ? ' *' : ''}</span><small>{port.data_type}</small></div>)}</div><div>{entry.definition?.outputs.map((port) => <div className={`node-graph-card__port node-graph-card__port--output ${portVisual(port).className}`} style={portVisual(port).style as React.CSSProperties} key={port.name}><span>{port.name}</span><small>{port.data_type}</small><Handle type="source" position={data.mirrored ? Position.Left : Position.Right} id={`out:${port.name}`} title={`${port.name}: ${port.data_type} · ${port.transport || 'in_process'}`} /></div>)}</div></div>
+    {open && createPortal(<aside ref={cardRef} className="node-graph-info-card nodrag nowheel" role="note" aria-label={`${labels.info}: ${entry.node.label || entry.node.id}`} style={location} onMouseEnter={(event) => { event.stopPropagation(); if (hideTimer.current !== null) window.clearTimeout(hideTimer.current); }} onMouseLeave={(event) => { event.stopPropagation(); hideSoon(); }} onPointerDown={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === 'Escape') { setOpen(false); event.stopPropagation(); } }}><button type="button" onClick={() => setOpen(false)} aria-label={labels.close}>×</button><h3>{entry.node.label || entry.node.id}</h3><code>{entry.node.node_type}</code><p><strong>{labels.type}:</strong> {entry.definition?.description || labels.missing}</p><p><strong>{labels.instance}:</strong> {entry.node.description || '—'}</p>{([['input', entry.definition?.inputs], ['output', entry.definition?.outputs]] as const).map(([direction, ports]) => <section key={direction}><h4>{labels[direction]}</h4><ul>{ports?.map((port) => { const schema = data.dataTypes.find((item) => item.id === port.data_type)?.schema; const units = [...new Set(Object.values(schema?.properties || {}).map((field) => field['x-unit']).filter(Boolean))]; return <li key={port.name}><code>{port.name}</code> · {port.data_type}{units.length ? ` · ${units.join(', ')}` : ''}{port.description ? ` · ${port.description}` : ''}{port.transport ? ` · ${port.transport}` : ''}</li>; })}</ul></section>)}{data.liveAllowed && /^eos\.hardware\.(camera|base|manipulator)@v0\.1$/.test(entry.node.node_type) && <p role="status"><strong>{labels.status}:</strong> {live && liveClock - live.at <= 5000 ? `${live.status} · ${live.health}` : labels.stale}</p>}</aside>, document.body)}
   </div>;
 }
 const nodeTypes = { profile: FlowNode };
@@ -498,7 +528,7 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
     finally { setBusy(false); }
   };
   const validationCurrent = !!graph && validationDisplayIsCurrent(validationStamp, graph, editGeneration.current);
-  const nodes = useMemo<Node<FlowData>[]>(() => entries.map((entry, index) => ({ id: entry.path, type: 'profile', position: positions[entry.path] || { x: 50 + (index % 3) * 330, y: 50 + Math.floor(index / 3) * 220 }, data: { entry, error: diagnostics.some((item) => item.path.includes(entry.path)), mirrored: !!mirrors[entry.path] }, selected: selected.includes(entry.path) })), [entries, positions, selected, diagnostics, mirrors]);
+  const nodes = useMemo<Node<FlowData>[]>(() => entries.map((entry, index) => ({ id: entry.path, type: 'profile', position: positions[entry.path] || { x: 50 + (index % 3) * 330, y: 50 + Math.floor(index / 3) * 220 }, data: { entry, error: diagnostics.some((item) => item.path.includes(entry.path)), mirrored: !!mirrors[entry.path], lang, dataTypes, liveRunId: processStatus?.run_id || null, liveAllowed: !dirty && !readOnly && processStatus?.run_id_state === 'known' && !!processStatus.run_id && processStatus.state === 'running' && processStatus.active_revision === revision && processStatus.saved_revision === revision }, selected: selected.includes(entry.path) })), [entries, positions, selected, diagnostics, mirrors, lang, dataTypes, dirty, readOnly, processStatus, revision]);
   const edges = useMemo<Edge[]>(() => entries.flatMap((entry) => Object.entries(entry.node.inputs || {}).flatMap(([input, sources]) => {
     const sourceList = inputSources(sources);
     return sourceList.map((source, inputIndex) => {

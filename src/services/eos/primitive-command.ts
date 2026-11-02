@@ -1,8 +1,48 @@
 import type { NodeGraph, NodeInstance, ProcessStatus } from '../isos/node-graph';
 import { publicControl, decodeDispatchResult, ResultClientError, validCommandId, validRevision, type DispatchResult } from './primitive-result';
+import { canonicalNodePath } from '../../components/isos/node-graph-edits';
+import { movementTypes, movementValid, type Movement, type MovementType } from '../../components/isos/eos-control-model';
 
 export interface BaseBinding { path: string; targetPath: string; target: NodeInstance; version: 'v0.1' | 'v1.0' }
 export interface BodyVelocity { type: 'body_velocity'; x_m_s: number; y_m_s: number; yaw_rad_s: number; valid_for_ms: number }
+export interface PrimitiveBinding { path: string; node: NodeInstance; targetPath: string; target: NodeInstance; mode: MovementType; primitiveName: string; primitiveVersion: string; dataTypeId: 'base_movement' | 'manipulator_movement' }
+const PRIMITIVES: Record<MovementType, string> = { body_velocity: 'base.velocity', relative_pose: 'base.navigate', joint_positions: 'arm.movej', end_effector_pose: 'arm.movel' };
+/** A binding is executable only when the saved graph resolves exactly one matching command edge. */
+export function resolvePrimitiveBindings(graph: NodeGraph): PrimitiveBinding[] {
+  const layers = graph.cores.eos?.layers;
+  if (!layers) return [];
+  const entries = Object.entries(layers).flatMap(([layer, value]) => Object.entries(value.groups).flatMap(([group, value]) => Object.entries(value.nodes).map(([id, node]) => ({ path: `eos/${layer}/${group}/${id}`, node }))));
+  return entries.flatMap(({ path, node }) => {
+    const match = /^eos\.dispatcher\.primitive_(base|manipulator)@v0\.1$/.exec(node.node_type);
+    if (!match || !path.startsWith(`eos/dispatcher/${match[1]}/`)) return [];
+    const mode = node.settings?.movement_type;
+    if (typeof mode !== 'string' || !Object.prototype.hasOwnProperty.call(PRIMITIVES, mode) || node.settings?.primitive_name !== PRIMITIVES[mode as MovementType] || node.settings?.primitive_version !== '1.0.0') return [];
+    const kind = match[1];
+    if ((kind === 'base') !== (mode === 'body_velocity' || mode === 'relative_pose')) return [];
+    const targets = entries.filter(({ path: candidatePath, node: candidate }) => {
+      const sources = Array.isArray(candidate.inputs?.command) ? candidate.inputs.command : candidate.inputs?.command ? [candidate.inputs.command] : [];
+      return candidatePath.startsWith(`eos/hardware/${kind}/`) && candidate.node_type === `eos.hardware.${kind}@v0.1` && sources.length === 1 && canonicalNodePath(sources[0].node) === path && sources[0].output === 'command';
+    });
+    if (targets.length !== 1 || !movementTypes(targets[0].node).includes(mode as MovementType)) return [];
+    return [{ path, node, targetPath: targets[0].path, target: targets[0].node, mode: mode as MovementType,
+      primitiveName: PRIMITIVES[mode as MovementType], primitiveVersion: '1.0.0', dataTypeId: kind === 'base' ? 'base_movement' : 'manipulator_movement' }];
+  });
+}
+export function typedPrimitiveRequest(binding: PrimitiveBinding, activeRevision: string, commandId: string, sequence: number, eosTime: number, payload: Movement): Record<string, unknown> {
+  if (!validRevision(activeRevision) || !validCommandId(commandId) || !Number.isSafeInteger(sequence) || sequence < 1 ||
+      !Number.isSafeInteger(eosTime) || eosTime < 0 || eosTime > Number.MAX_SAFE_INTEGER - 4_000_000_000 ||
+      payload.type !== binding.mode || !movementValid(payload, binding.target)) throw new ResultClientError('validation', 'Invalid binding, payload, revision or EOS deadline.');
+  const bytes = new TextEncoder().encode(JSON.stringify(payload)).length;
+  if (bytes < 1 || bytes > 16384) throw new ResultClientError('validation', 'Invalid payload length.');
+  return { op: 'primitive_typed', header: { data_type_id: binding.dataTypeId, data_type_version: '1.0', primitive_name: binding.primitiveName,
+    primitive_version: binding.primitiveVersion, source_path: binding.path, target_path: binding.targetPath, active_revision: activeRevision,
+    command_id: commandId, sequence, deadline_monotonic_ns: eosTime + 4_000_000_000, payload_length_bytes: bytes, codec: 'json_v1' }, payload };
+}
+export async function sendPrimitive(binding: PrimitiveBinding, activeRevision: string, commandId: string, sequence: number, eosTime: number, payload: Movement, signal?: AbortSignal, onAttempt?: () => void): Promise<DispatchResult> {
+  const request = typedPrimitiveRequest(binding, activeRevision, commandId, sequence, eosTime, payload);
+  onAttempt?.();
+  return decodeDispatchResult(await publicControl(request, signal), commandId);
+}
 export function resolveBaseBindings(graph: NodeGraph): BaseBinding[] {
   const layers = graph.cores.eos?.layers;
   if (!layers) return [];

@@ -1,8 +1,9 @@
 import { canonicalNodePath } from './node-graph-edits';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { eosRequest, type EosControlReply, type EosDiscoveryNode } from '@/services/eos/control';
 import { VisionPanel } from './VisionPanel';
 import { PrimitiveBaseCard } from './PrimitiveBaseCard';
+import { resolvePrimitiveBindings } from '@/services/eos/primitive-command';
 import { getNodeGraph, getNodeTypes, getProcessStatus, nodeGraphHasEditableShape, nodeGraphReadOnlyReason, type NodeGraphDocument, type NodeInstance, type ProcessStatus } from '@/services/isos/node-graph';
 import type { Language } from '@/types';
 import { activeGraphIsCurrent, defaultMovement, discoveredHardware, eosControlNodes, eosGraphNodes, hardwareKind, monitorBadge, movementTypes, movementValid, visionRuntimeState, type AdapterStatus, type EosGraphNode, type Movement, type MovementType } from './eos-control-model';
@@ -151,13 +152,18 @@ export function EosWorkbench({ lang, onOpenGraph, onOpenLogs, graphDirty }: Prop
   const [graphDoc, setGraphDoc] = useState<NodeGraphDocument | null>(null);
   const [readOnlyReason, setReadOnlyReason] = useState<string | null>(null);
   const [status, setStatus] = useState<ProcessStatus | null>(null);
+  const [stopFenceRunId, setStopFenceRunId] = useState<string | null>(null);
+  const stopFenceRef = useRef<string | null>(null);
+  const markStopIntent = (runId: string | null): void => { stopFenceRef.current = runId; setStopFenceRunId(runId); };
   const [discovery, setDiscovery] = useState<EosDiscoveryNode[]>([]);
+  const [typeDescriptions, setTypeDescriptions] = useState<Record<string, string>>({});
   const [readings, setReadings] = useState<Record<string, Reading>>({});
   const [error, setError] = useState('');
   const [clock, setClock] = useState(Date.now());
   const refresh = useCallback(async (): Promise<void> => {
     try {
       const [graph, catalog, process] = await Promise.all([getNodeGraph(), getNodeTypes().catch(() => null), getProcessStatus()]);
+      setTypeDescriptions(Object.fromEntries((catalog?.types || []).map((type) => [type.id, type.description || ''])));
       setReadOnlyReason(nodeGraphReadOnlyReason(graph, catalog?.types || null));
       setGraphDoc((current) => nodeGraphHasEditableShape(graph.graph) ? current?.revision === graph.revision ? current : graph : null); setStatus(process); setError('');
       if (!nodeGraphReadOnlyReason(graph, catalog?.types || null) && activeGraphIsCurrent(graph.revision, process.active_revision)) {
@@ -212,7 +218,7 @@ export function EosWorkbench({ lang, onOpenGraph, onOpenLogs, graphDirty }: Prop
     {readOnlyReason && <p role="alert" className="eos-control__warning">{lang === 'cn' ? '只读节点图：' : 'Read-only graph: '}{readOnlyReason}</p>}
     {!active && <p role="status" className="eos-control__warning">{copy.off}</p>}
     {error && <p role="alert" className="eos-control__warning">{error}</p>}
-    <section id="eos-controls" className="eos-workbench__section"><h2>{copy.controls}</h2><div className="eos-workbench__controls"><PrimitiveBaseCard lang={lang} graph={graphDoc} status={status} dirty={graphDirty} readOnly={Boolean(readOnlyReason)} readings={readings} clock={clock} onStop={setStatus} onOpenLogs={onOpenLogs || (() => { window.location.href = `/${lang}/isos?page=home&logs=1`; })} /></div></section>
+    <section id="eos-controls" className="eos-workbench__section"><h2>{copy.controls}</h2><div className="eos-workbench__controls">{(graphDoc ? resolvePrimitiveBindings(graphDoc.graph) : []).map((binding) => <PrimitiveBaseCard key={binding.path} bindingPath={binding.path} typeDescriptions={typeDescriptions} stopFenced={Boolean(status?.run_id && status.run_id === stopFenceRunId)} isStopFenced={() => Boolean(status?.run_id && status.run_id === stopFenceRef.current)} onStopIntent={markStopIntent} lang={lang} graph={graphDoc} status={status} dirty={graphDirty} readOnly={Boolean(readOnlyReason)} readings={readings} clock={clock} onStop={setStatus} onOpenLogs={onOpenLogs || (() => { window.location.href = `/${lang}/isos?page=home&logs=1`; })} />)}{(!graphDoc || resolvePrimitiveBindings(graphDoc.graph).length === 0) && <PrimitiveBaseCard lang={lang} stopFenced={Boolean(status?.run_id && status.run_id === stopFenceRunId)} isStopFenced={() => Boolean(status?.run_id && status.run_id === stopFenceRef.current)} onStopIntent={markStopIntent} graph={graphDoc} status={status} dirty={graphDirty} readOnly={Boolean(readOnlyReason)} readings={readings} clock={clock} onStop={setStatus} onOpenLogs={onOpenLogs || (() => { window.location.href = `/${lang}/isos?page=home&logs=1`; })} />}</div></section>
     <section id="eos-monitor" className="eos-workbench__section"><h2>{copy.monitor}</h2>{hardware.length ? <div className="eos-monitor__grid">{hardware.map((entry) => {
       const kind = hardwareKind(entry.node.node_type); const reading = readings[entry.path]; const badge = monitorBadge(reading, clock);
       return <article className={`eos-monitor__card eos-monitor__card--${kind}`} key={entry.path}><header><h3>{entry.node.label || entry.node.id}</h3><span className={`eos-monitor__${badge}`}>{copy[badge]}</span></header><p><code>{kind}</code> · {copy.status}: {reading?.status?.state || '—'} · {copy.health}: {reading?.health?.state || '—'}</p>{reading?.status?.active_command_id && <p>{copy.command}: <code>{reading.status.active_command_id}</code></p>}{reading?.health?.message && <p>{reading.health.message}</p>}{reading?.error && <p role="alert">{reading.error}</p>}{kind !== 'camera' && <><h4>{copy.observation}</h4><Observation kind={kind || ''} value={reading?.observation} />{reading?.observationAt && <p>{copy.update}: {new Date(reading.observationAt).toLocaleTimeString()}</p>}</>}</article>;
