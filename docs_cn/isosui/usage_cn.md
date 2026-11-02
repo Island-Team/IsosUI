@@ -24,7 +24,7 @@
 
 ## 当前 R07 模拟底盘控制
 
-[R07 浏览器原语客户端](interfaces/browser-results_cn.md)已合并，并验证一个受管理 `mock-cxx` 底盘绑定。[共享 R07 记录](https://github.com/Island-Team/Island-eos/blob/refactor%28v2%29/runtime-main/docs/island/implementation-todo.md)记录了一次操作员点击：同一命令 ID 经历 `Sending`、`InProgress` 和持久化 `OutcomeUnknown`；同运行已确认 Stop 及结果围栏也通过。这是限定于模拟底盘的首次使用；R06 MuJoCo 物理停止、U04 完整逐绑定控件及 M5 发布重放仍未完成。其最小 EOS 卡选择一个合格的活动 `base.velocity` 绑定，显示图解析的 base 目标及有界 `body_velocity` 字段，只在操作员点击 Invoke 后发送 `primitive_typed`。受管理模拟重放验证了这条路径；真实 MuJoCo 运动仍由 R06 把关。记录 IsOS 运行 ID 和相等的保存／活动修订，取得 EOS 单调时间，浏览器本地 `sending` 期间持续显示生成的命令 ID。EOS 返回 `InProgress` 时，只有 IsOS 仍报告同一运行中的部署，才用该 ID 和修订读取有界公开 `result` 操作。精确显示 `Completed`、`Failed`、`Cancelled`、`Rejected`、`InProgress` 或 `OutcomeUnknown`；桥接离线、旧运行或修订过期都显示不可用，绝不当成成功。发送超时后不重发命令。打开无筛选的 Home 当前运行日志；只有 EOS 所有者事件提供与命令对应的有效关联 ID，才能预填关联筛选。命令 ID 单独显示。即使 EOS 离线，IsOS 部署 Stop 仍须可用。MuJoCo 运动控件必须等 R06 物理停止验证后才能开放；完整每绑定目录、节点卡及浮动面板仍属 U04/U03。
+[R07 浏览器原语客户端](interfaces/browser-results_cn.md)已合并，并验证一个受管理 `mock-cxx` 底盘绑定。[共享 R07 记录](https://github.com/Island-Team/Island-eos/blob/refactor%28v2%29/runtime-main/docs/island/implementation-todo.md)记录了一次操作员点击：同一命令 ID 经历 `Sending`、`InProgress` 和持久化 `OutcomeUnknown`；同运行已确认 Stop 及结果围栏也通过。这是限定于模拟底盘的首次使用；R07 重放范围限于模拟底盘；U04 现已提供逐绑定控件，M5 发布重放仍未完成。其最小 EOS 卡选择一个合格的活动 `base.velocity` 绑定，显示图解析的 base 目标及有界 `body_velocity` 字段，只在操作员点击 Invoke 后发送 `primitive_typed`。受管理模拟重放验证了这条路径；真实 MuJoCo 运动仍由 R06 把关。记录 IsOS 运行 ID 和相等的保存／活动修订，取得 EOS 单调时间，浏览器本地 `sending` 期间持续显示生成的命令 ID。EOS 返回 `InProgress` 时，只有 IsOS 仍报告同一运行中的部署，才用该 ID 和修订读取有界公开 `result` 操作。精确显示 `Completed`、`Failed`、`Cancelled`、`Rejected`、`InProgress` 或 `OutcomeUnknown`；桥接离线、旧运行或修订过期都显示不可用，绝不当成成功。发送超时后不重发命令。打开无筛选的 Home 当前运行日志；只有 EOS 所有者事件提供与命令对应的有效关联 ID，才能预填关联筛选。命令 ID 单独显示。即使 EOS 离线，IsOS 部署 Stop 仍须可用。逐绑定控件和图信息卡见下文；U03 负责独立浮动面板布局。
 
 ### 使用受管理模拟底盘首次运行 R07
 
@@ -46,8 +46,12 @@ Graph 首先显示可搜索的注册类型库。选中类型时显示非空的**
 
 工作区让**控制**、**监视**、**Vision**、**日志**面板分别停靠或浮动。浮动面板有拖动、调整大小、焦点顺序、关闭/停靠操作、有界视口和本地布局保存；恢复时把几何位置限制在当前视口。窄屏按顺序叠放，保留 Stop、连接失败和修订过期提示。工作页面采用紧凑对齐的行、透明或轻微半透明背景；视觉概览页面可用更宽的间距。两类页面共享参考 Island-web 的样式 token、克制的边框、可见键盘焦点、28–30 px 桌面控件和至少 44×44 px 触摸目标。
 
-完整 U04 原语演示按以下顺序使用：查看节点，检查并应用图，等待 EOS 就绪。在 EOS 控制面板中选择一个活动原语绑定并查看从图解析出的唯一目标；要改变目标须编辑图并 Apply。面板显示两种节点描述，并按所属契约显示类型化原语字段。通过现有回环 `primitive_typed` 桥接调用。先显示浏览器本地的发送状态，再根据关联响应显示精确的 `Completed`、`Failed`、`Cancelled`、`Rejected`、`InProgress` 或 `OutcomeUnknown`；`InProgress` 在经授权结果读取确认前保持未完成。当前运行日志与实时健康分别呈现；仅当 EOS 所有者事件提供对应的有效 ID 时按关联筛选日志。图上的连线本身不表示命令已经执行。通过 IsOS 停止。完整 U04 控制流仍在 R07 最小卡之后规划。
+完整 U04 原语演示按以下顺序使用：查看节点，检查并应用图，等待 EOS 就绪。在 EOS 控制面板中选择一个活动原语绑定并查看从图解析出的唯一目标；要改变目标须编辑图并 Apply。面板显示两种节点描述，并按所属契约显示类型化原语字段。通过现有回环 `primitive_typed` 桥接调用。先显示浏览器本地的发送状态，再根据关联响应显示精确的 `Completed`、`Failed`、`Cancelled`、`Rejected`、`InProgress` 或 `OutcomeUnknown`；`InProgress` 在经授权结果读取确认前保持未完成。当前运行日志与实时健康分别呈现；仅当 EOS 所有者事件提供对应的有效 ID 时按关联筛选日志。图上的连线本身不表示命令已经执行。通过 IsOS 停止。U04 控制流已按下文实现；M5 将在洁净主目录中重放。
 
 ### 连线服务质量检查器
 
 选择连线后点击**检查节点图**。检查器依据 IsOS 返回的精确来源指针显示路由类别。仅当 IsOS 确认连线已声明路由、允许 QoS 且不是固定连线时，才能编辑优先级和频率上限。nice 优先级为 -20（最高）至 19（最低）的整数，有效权重为 `20 − 优先级`；频率上限留空表示无限制。生产者预期频率仅是单独提示。输入后按 Enter 或离开字段提交草稿。每次编辑都会清除先前的路由授权；再次编辑 QoS 前需重新**检查节点图**。无效值阻止保存和保存并运行。Apply 前会重新请求 IsOS 检查精确草稿；拒绝或过期检查不会发送 Apply。仅设计用途与固定连线仍可查看，但不能编辑 QoS。
+
+## U04 节点卡与原语控制
+
+鼠标悬停或键盘聚焦 Graph 节点，也可轻触信息按钮，查看独立的目录类型与实例描述、类型化端口以及 EOS 所有者报告的健康状态。Escape 或关闭按钮退出视口内的信息卡。在 EOS 中，每个受支持的活动 `@v0.1` 底盘或机械臂绑定都有独立控制卡。检查图解析的唯一目标、原语、单位和限值；更改目标须编辑并 Apply 节点图。等待已知 IsOS 运行、相等的保存／活动修订及 EOS 就绪健康状态。仅点击一次调用。浏览器显示发送中时保留命令 ID，随后显示 EOS 的精确状态。`InProgress` 仅用同一 ID 经授权的公开结果读取跟进；丢失响应绝不重新提交。EOS 控制失败时仍可通过 IsOS 停止部署。参见 [U04 契约](interfaces/primitive-control_cn.md)。
