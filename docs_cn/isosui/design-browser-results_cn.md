@@ -33,3 +33,5 @@ R07 呈现一个最小活动 base 绑定卡，显示图解析目标及四个有�
 ## Stop 终态显示修正
 
 R07 实际重放发现 EOS 卡从 IsOS Stop `{stopped,terminal}` 响应中读取不存在的 `result.state`，工作台也将该响应当作 `ProcessStatus` 保存。独立的 `stopProcesses()` 服务类型消除了这两种混淆。共用的运行时解码器在显示确认前验证完整终态、固定原因代码和点击时捕获的运行 ID。Home、Graph、EOS 对等待、确认、未知、未确认及响应不可用使用相同语义。EOS 卡点击 Stop 时立即隔离未完成的结果读取；各 Stop 路径在响应后重新读取 `/process-status`，状态刷新失败也保留 Stop 结果。组件测试覆盖 EOS 离线与修订过期、迟到结果、未知及传输故障；纯测试覆盖 null、缺失、损坏和运行不匹配的终态证据。本分支的完整检查命令及输出位于 `logs/test/20261102-stop-terminal-display/`。
+
+独立审查还要求重复的终态子进程 ID 必须拒绝确认、`terminal:null` 且 `stopped` 非空必须保持未确认、明确的 `IsosApiError` 拒绝须保留所有者身份。这些情况在共用解码器和挂载 EOS 卡中有负向测试；三个 Stop 入口共用相同的错误呈现。
