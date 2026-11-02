@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import type { ProcessStatus, StopControlReply } from '../../services/isos/node-graph';
-import { stopReplyFeedback, stopTransportFeedback } from './stop-feedback';
+import { IsosApiError } from '../../services/isos/api-client';
+import { stopReplyFeedback, stopFailureFeedback } from './stop-feedback';
 
 const before: ProcessStatus = { schema_version: '1.0.0', state: 'running', run_id: 'run-a', run_id_state: 'known', processes: [] };
 const reply = (terminal: unknown): StopControlReply => ({ stopped: ['eos'], terminal } as StopControlReply);
@@ -11,6 +12,7 @@ it('confirms only a complete, run-matched owner terminal', () => {
   expect(stopReplyFeedback(reply({ ...confirmed, run_id: 'run-b' }), before, 'en').alert).toBe(true);
   expect(stopReplyFeedback(reply(confirmed), { ...before, run_id_state: 'unavailable' }, 'en').alert).toBe(true);
   expect(stopReplyFeedback(reply({ ...confirmed, processes: [{ id: 'eos', outcome: 'unknown', reason_code: 'eos_stop_unconfirmed' }] }), before, 'en').alert).toBe(true);
+  expect(stopReplyFeedback(reply({ ...confirmed, processes: [confirmed.processes[0], confirmed.processes[0]] }), before, 'en')).toEqual({ text: 'Stop unconfirmed', alert: true });
 });
 
 it('shows a fixed unknown reason as an alert in both languages', () => {
@@ -24,10 +26,13 @@ it.each([null, undefined, {}, { ...confirmed, outcome: 'mystery' }, { ...confirm
 });
 
 it('identifies a never-run home without inventing a stop confirmation', () => {
-  expect(stopReplyFeedback(reply(null), { ...before, run_id: null, run_id_state: 'none' }, 'en')).toEqual({ text: 'No managed run to stop', alert: false });
+  expect(stopReplyFeedback({ stopped: [], terminal: null }, { ...before, run_id: null, run_id_state: 'none' }, 'en')).toEqual({ text: 'No managed run to stop', alert: false });
+  expect(stopReplyFeedback(reply(null), { ...before, run_id: null, run_id_state: 'none' }, 'en')).toEqual({ text: 'Stop unconfirmed', alert: true });
   expect(stopReplyFeedback(reply(null), { ...before, run_id: null, run_id_state: 'unavailable' }, 'en').alert).toBe(true);
 });
 
 it('keeps transport failure separate from owner outcomes', () => {
-  expect(stopTransportFeedback('en')).toEqual({ text: 'Stop response unavailable; check IsOS status and current run logs.', alert: true });
+  expect(stopFailureFeedback(new Error('socket closed'), 'en')).toEqual({ text: 'Stop response unavailable; check IsOS status and current run logs.', alert: true });
+  expect(stopFailureFeedback(new IsosApiError('stop denied', 403, 'stop_denied'), 'en')).toEqual({ text: 'Stop rejected by IsOS: stop denied', alert: true });
+  expect(stopFailureFeedback(new IsosApiError('stop denied', 403), 'cn')).toEqual({ text: 'IsOS 拒绝停止: stop denied', alert: true });
 });

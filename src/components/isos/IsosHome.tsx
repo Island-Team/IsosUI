@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { applyNodeGraph, controlProcesses, stopProcesses, getBackends, getInstalledPackages, getNodeGraph, getNodeTypes, getProcessStatus, getSetupStatus, getCoreReadiness, previewBackendLink, graphWithBackendScene, installBackend, linkBackend, nodeGraphHasEditableShape, nodeGraphReadOnlyReason, requiredBackend, validateNodeGraph, type BackendPackage, type InstalledPackage, type NodeGraph, type ProcessStatus, type SetupStatus, type CoreReadiness, type LinkPreview } from '@/services/isos/node-graph';
 import { IsosLogsPanel } from './IsosLogsPanel';
 import { IsosApiError } from '@/services/isos/api-client';
-import { stopReplyFeedback, stopTransportFeedback, type StopFeedback } from './stop-feedback';
+import { stopReplyFeedback, stopFailureFeedback, type StopFeedback } from './stop-feedback';
 import type { Language } from '@/types';
 import './workbench.scss';
 
@@ -69,7 +69,7 @@ export function IsosHome({ lang, onOpenGraph, graphDirty }: Props): React.ReactE
         const reply = await stopProcesses();
         setStopOutcome(stopReplyFeedback(reply, before, lang));
         try { setStatus(await getProcessStatus()); } catch { /* Preserve the known Stop outcome. */ }
-      } catch { setStopOutcome(stopTransportFeedback(lang)); }
+      } catch (error) { setStopOutcome(stopFailureFeedback(error, lang)); }
       finally { setBusy(false); }
       return;
     }

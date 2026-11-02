@@ -21,7 +21,7 @@ describe('IsOS API client', () => {
   it('preserves revision conflict guidance', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 409, json: async () => ({ schema_version: 1, ok: false, data: null, error: 'changed' }) }));
     const { request } = await import('./api-client');
-    await expect(request('/node-graph', 'PUT', { revision: 'old' })).rejects.toThrow('Refresh before applying');
+    await expect(request('/node-graph', 'PUT', { revision: 'old' })).rejects.toMatchObject({ name: 'IsosApiError', status: 409, message: expect.stringContaining('Refresh before applying') });
   });
 
   it('rejects a mismatched API envelope', async () => {

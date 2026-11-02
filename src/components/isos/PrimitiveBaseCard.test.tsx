@@ -3,6 +3,7 @@ import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { NodeGraphDocument, ProcessStatus, StopControlReply } from '../../services/isos/node-graph';
+import { IsosApiError } from '../../services/isos/api-client';
 
 const stopMock = vi.fn(async (): Promise<StopControlReply> => ({ stopped: ['eos'], terminal: { run_id: 'run-a', outcome: 'confirmed', reason_code: null, processes: [{ id: 'eos', outcome: 'confirmed', reason_code: null }] } }));
 vi.mock('../../services/isos/node-graph', async (importOriginal) => {
@@ -66,6 +67,18 @@ it('shows a transport failure without retrying Stop', async () => {
   await act(async () => [...container.querySelectorAll('button')].find((button) => button.textContent === 'Stop deployment')!.click());
   expect(stopMock.mock.calls.length).toBe(calls + 1);
   expect(container.querySelector('[role="alert"]')?.textContent).toContain('Stop response unavailable');
+  await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals();
+});
+
+it('shows an IsOS owner rejection distinctly from a lost response', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  stopMock.mockImplementationOnce(async () => { throw new IsosApiError('stop denied', 403, 'stop_denied'); });
+  const container = document.createElement('div'); document.body.appendChild(container); const root = createRoot(container);
+  const { PrimitiveBaseCard } = await import('./PrimitiveBaseCard');
+  await act(async () => root.render(<PrimitiveBaseCard lang="en" graph={graph} status={process} dirty readOnly readings={{}} clock={Date.now()} onStop={() => undefined} onOpenLogs={() => undefined} />));
+  await act(async () => [...container.querySelectorAll('button')].find((button) => button.textContent === 'Stop deployment')!.click());
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain('Stop rejected by IsOS: stop denied');
+  expect(container.textContent).not.toContain('Stop response unavailable');
   await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals();
 });
 

@@ -5,7 +5,7 @@ import { eosMonotonicTime, resolveBaseBindings, sendFence, validBodyVelocity, se
 import { readPrimitiveResult, ResultClientError, terminalResult } from '../../services/eos/primitive-result';
 import { acceptPrimitiveResult, newPrimitiveRecord, pollAllowed, primitiveError, resultFence, type PrimitiveRecord } from './primitive-result-state';
 import { monitorBadge, type AdapterStatus } from './eos-control-model';
-import { stopReplyFeedback, stopTransportFeedback, type StopFeedback } from './stop-feedback';
+import { stopReplyFeedback, stopFailureFeedback, type StopFeedback } from './stop-feedback';
 
 interface Reading { status?: AdapterStatus; statusAt?: number; health?: { state: string }; healthAt?: number }
 interface Props { lang: Language; graph: NodeGraphDocument | null; status: ProcessStatus | null; dirty: boolean; readOnly: boolean;
@@ -109,7 +109,7 @@ export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, readin
       const result = await stopProcesses();
       setStopResult(stopReplyFeedback(result, before, lang));
       try { onStop(await getProcessStatus()); } catch { /* The known Stop outcome remains visible. */ }
-    } catch { setStopResult(stopTransportFeedback(lang)); }
+    } catch (error) { setStopResult(stopFailureFeedback(error, lang)); }
     finally { setStopping(false); }
   };
   const field = (name: keyof Omit<BodyVelocity, 'type'>, label: string, unit: string, max: number): React.ReactElement => <label className="eos-control__field"><span>{label} <small>{unit} (±{max})</small></span><input type="number" step={name === 'valid_for_ms' ? 1 : 'any'} min={name === 'valid_for_ms' ? 1 : -max} max={max} value={Number.isNaN(value[name]) ? '' : value[name]} onChange={(event) => setValue((before) => ({ ...before, [name]: event.target.value.trim() ? Number(event.target.value) : Number.NaN }))} /></label>;

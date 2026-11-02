@@ -13,7 +13,7 @@ import { IsosLogsPanel } from './IsosLogsPanel';
 import { edgeContracts, edgeInputDiagnostics } from './edge-idl';
 import { EgiaWorkbench } from './EgiaWorkbench';
 import { processRunFeedback } from './process-run-feedback';
-import { stopReplyFeedback, stopTransportFeedback } from './stop-feedback';
+import { stopReplyFeedback, stopFailureFeedback } from './stop-feedback';
 import { browserLog } from '@/services/isos/browser-logs';
 import { draftValidationStamp, validationDisplayIsCurrent, validationResponseIsCurrent, type DraftValidationStamp } from './draft-validation';
 import './node-graph-manager.scss';
@@ -449,7 +449,7 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
       const feedback = stopReplyFeedback(reply, before, lang);
       setMessage(feedback.text, feedback.alert);
       try { setProcessStatus(await getProcessStatus()); } catch { /* Keep the Stop outcome visible. */ }
-    } catch { const feedback = stopTransportFeedback(lang); setMessage(feedback.text, feedback.alert); }
+    } catch (error) { const feedback = stopFailureFeedback(error, lang); setMessage(feedback.text, feedback.alert); }
     finally { setBusy(false); }
   };
   const validationCurrent = !!graph && validationDisplayIsCurrent(validationStamp, graph, editGeneration.current);

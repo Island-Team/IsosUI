@@ -1,6 +1,4 @@
 /** Versioned API client for the local IsOS process. */
-const BASE = `${ISOSUI_API_ORIGIN}/api/isos/v1`;
-
 interface Envelope<T> { schema_version: 1; ok: boolean; data: T | null; error: string | null }
 type LoopbackRequestInit = RequestInit & { targetAddressSpace?: 'loopback' };
 
@@ -31,7 +29,7 @@ export async function request<T>(path: string, method = 'GET', body?: unknown, s
       mode: 'cors',
       targetAddressSpace: 'loopback',
     };
-    response = await fetch(`${BASE}${path}`, options);
+    response = await fetch(`${ISOSUI_API_ORIGIN}/api/isos/v1${path}`, options);
   } catch {
     throw new Error(`Cannot reach IsOS at ${ISOSUI_API_ORIGIN}. Run isos serve and check the service address and port.`);
   }
@@ -44,7 +42,7 @@ export async function request<T>(path: string, method = 'GET', body?: unknown, s
     throw new Error('This IsosUI build needs the IsOS v1 API. Update IsOS or use a compatible UI release.');
   }
   if (!response.ok || !envelope?.ok || envelope.data === null) {
-    if (response.status === 409) throw new Error('This graph changed in another editor. Refresh before applying.');
+    if (response.status === 409) throw new IsosApiError('This graph changed in another editor. Refresh before applying.', 409, diagnosticCode(envelope?.data));
     throw new IsosApiError(envelope?.error || `IsOS request failed (${response.status}).`, response.status, diagnosticCode(envelope?.data));
   }
   return envelope.data;
