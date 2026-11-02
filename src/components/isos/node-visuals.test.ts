@@ -10,8 +10,9 @@ describe('node visual semantics', () => {
     expect(portVisual(slow).className).toContain('transport--websocket');
     expect(portVisual(slow).style['--port']).toBe(dataTypeColor('vision_frame'));
     expect(dataTypeColor('vision_frame')).not.toBe(dataTypeColor('camera_frame'));
-    expect(interfaceVisual(slow).className).toContain('frequency--low');
-    expect(interfaceVisual(fast).className).toContain('frequency--solid');
+    expect(interfaceVisual(slow).className).toContain('frequency--unlimited');
+    expect(interfaceVisual(slow, 0.1).className).toContain('frequency--low');
+    expect(interfaceVisual(fast, 60).className).toContain('frequency--solid');
     expect(interfaceVisual(slow).style['--wire']).toBe(interfaceVisual(fast).style['--wire']);
     expect(frequencyPattern(undefined)).toBe('unknown');
   });
