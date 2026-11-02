@@ -38,7 +38,7 @@ function displayLine(line: LogLine): string {
   return `${line.timestamp} ${line.level.toUpperCase()} [${identity || line.source}] ${line.message}${related ? ` (${related})` : ''}${line.fields && Object.keys(line.fields).length ? ` ${JSON.stringify(line.fields)}` : ''}`;
 }
 
-export function IsosLogsPanel({ lang, onClose, initialSource = 'all', sources = [] }: { lang: Language; onClose: () => void; initialSource?: string; sources?: string[] }): React.ReactElement {
+export function IsosLogsPanel({ lang, onClose, initialSource = 'all', sources = [], visible = true }: { lang: Language; onClose: () => void; initialSource?: string; sources?: string[]; visible?: boolean }): React.ReactElement {
   const [source, setSource] = useState(initialSource);
   const [level, setLevel] = useState<LogLevel>('info');
   const [nodePath, setNodePath] = useState('');
@@ -56,7 +56,7 @@ export function IsosLogsPanel({ lang, onClose, initialSource = 'all', sources = 
   const anchorRef = useRef<HTMLPreElement>(null);
   const observedAnchor = useRef<{ key: string; state: string } | null>(null);
   const announcedAnchor = useRef<string | null>(null);
-  useEffect(() => subscribeBrowserLogs(() => setBrowserLines(getBrowserLogs())), []);
+  useEffect(() => { if (!visible) return; setBrowserLines(getBrowserLogs()); return subscribeBrowserLogs(() => setBrowserLines(getBrowserLogs())); }, [visible]);
   useEffect(() => {
     cursor.current = undefined;
     setCurrent(resetCurrentLogDetails);
@@ -64,7 +64,7 @@ export function IsosLogsPanel({ lang, onClose, initialSource = 'all', sources = 
     setError('');
   }, [source, level, nodePath, correlationId]);
   useEffect(() => {
-    if (!following || source === 'browser') return;
+    if (!following || !visible || source === 'browser') return;
     const invalidFilter = (nodePath && !validNodeFilter(nodePath)) || (correlationId && !validCorrelationFilter(correlationId));
     if (invalidFilter) return;
     let stopped = false;
@@ -174,7 +174,7 @@ export function IsosLogsPanel({ lang, onClose, initialSource = 'all', sources = 
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('isosui:log-scope-recheck', onScopeRecheck);
     return () => { stopped = true; generation += 1; controller?.abort(); if (timer !== undefined) window.clearTimeout(timer); document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('isosui:log-scope-recheck', onScopeRecheck); };
-  }, [source, level, nodePath, correlationId, following, lang]);
+  }, [source, level, nodePath, correlationId, following, visible, lang]);
   const currentScope = useRef<string | null>(null);
 
   const copy = lang === 'cn'

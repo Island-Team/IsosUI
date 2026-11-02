@@ -11,7 +11,7 @@ import { stopReplyFeedback, stopFailureFeedback, type StopFeedback } from './sto
 
 interface Reading { status?: AdapterStatus; statusAt?: number; health?: { state: string }; healthAt?: number }
 interface Props { lang: Language; graph: NodeGraphDocument | null; status: ProcessStatus | null; dirty: boolean; readOnly: boolean; bindingPath?: string; typeDescriptions?: Record<string, string>;
-  readings: Record<string, Reading>; clock: number; stopFenced?: boolean; isStopFenced?: () => boolean; onStopIntent?: (runId: string | null) => void; onStop: (status: ProcessStatus) => void; onOpenLogs: () => void }
+  readings: Record<string, Reading>; clock: number; visible?: boolean; stopFenced?: boolean; isStopFenced?: () => boolean; onStopIntent?: (runId: string | null) => void; onStopOutcome?: (feedback: StopFeedback, terminalRun?: string | null) => void; onStop: (status: ProcessStatus) => void; onOpenLogs: () => void }
 const copy = {
   en: { title: 'Active primitive bindings', missing: 'No supported active @v0.1 primitive binding has exactly one target.', gated: 'Invoke requires a current managed run, one healthy target and valid typed arguments.', invoke: 'Invoke', stop: 'Stop deployment', stopping: 'Stopping…', logs: 'Current run logs', refresh: 'Refresh result', command: 'Command ID', revision: 'Active revision', binding: 'Binding', target: 'Target', result: 'Owner status', sending: 'Sending (browser)', following: 'In progress', unavailable: 'Unavailable', oldRun: 'Unavailable for this run', paused: 'In progress; automatic reads paused', updated: 'Last update', stopStatus: 'IsOS stop status', lease: 'Lease', invalid: 'Enter values within the hardware limits.' },
   cn: { title: '活动原语绑定', missing: '没有恰好一个目标的受支持活动 @v0.1 原语绑定。', gated: '调用需要当前受管运行、单一健康目标和有效的类型化参数。', invoke: '调用', stop: '停止部署', stopping: '正在停止…', logs: '当前运行日志', refresh: '刷新结果', command: '命令 ID', revision: '活动修订', binding: '绑定', target: '目标', result: '所有者状态', sending: '发送中（浏览器）', following: '执行中', unavailable: '不可用', oldRun: '不适用于本次运行', paused: '仍在执行；自动读取已暂停', updated: '最近更新', stopStatus: 'IsOS 停止状态', lease: '有效期', invalid: '参数超出硬件限值。' },
@@ -19,7 +19,7 @@ const copy = {
 function errorText(error: unknown): { kind: 'transport' | 'owner' | 'protocol' | 'validation'; message: string } {
   return error instanceof ResultClientError ? { kind: error.kind, message: error.message } : { kind: 'transport', message: 'Service unavailable.' };
 }
-export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, bindingPath, typeDescriptions, readings, clock, stopFenced = false, isStopFenced, onStopIntent, onStop, onOpenLogs }: Props): React.ReactElement {
+export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, bindingPath, typeDescriptions, readings, clock, visible = true, stopFenced = false, isStopFenced, onStopIntent, onStopOutcome, onStop, onOpenLogs }: Props): React.ReactElement {
   const c = copy[lang];
   const bindings = graph ? resolvePrimitiveBindings(graph.graph) : [];
   const binding = bindings.find((candidate) => candidate.path === bindingPath) || (!bindingPath ? bindings[0] : undefined);
@@ -54,11 +54,11 @@ export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, bindin
     cancel(); update(primitiveError(current, 'old_run', 'Deployment Stop requested; result follow-up ended for this run.'));
   }, [stopFenced, status?.run_id]);
   const targetLive = binding && monitorBadge(readings[binding.targetPath], clock) === 'live';
-  const canInvoke = Boolean(binding && targetLive && graph && sendFence(graph.revision, status, dirty, readOnly) && !stopFenced && !isStopFenced?.() && status?.run_id !== stoppedRunId && value.type === binding.mode && movementValid(value, binding.target) && record?.phase !== 'sending' && !stopping);
+  const canInvoke = Boolean(visible && binding && targetLive && graph && sendFence(graph.revision, status, dirty, readOnly) && !stopFenced && !isStopFenced?.() && status?.run_id !== stoppedRunId && value.type === binding.mode && movementValid(value, binding.target) && record?.phase !== 'sending' && !stopping);
   const follow = async (manual = false): Promise<void> => {
     const current = recordRef.current;
     if (!current || stopFenced || isStopFenced?.() || inFlight.current !== null || !current.submitAttempted || current.phase === 'sending' || current.phase === 'terminal' || (current.result && terminalResult(current.result.status)) || current.error?.kind === 'old_run' ||
-      (!manual && !pollAllowed(current, Date.now(), document.visibilityState === 'visible', false))) return;
+      (!manual && !pollAllowed(current, Date.now(), document.visibilityState === 'visible' && visible, false))) return;
     const token = generation.current;
     inFlight.current = token;
     const abort = new AbortController(); controller.current = abort;
@@ -82,11 +82,11 @@ export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, bindin
     if (!record || stopFenced || isStopFenced?.() || record.phase === 'sending' || record.phase === 'terminal' || record.phase === 'paused' || record.error?.kind === 'old_run' || record.error?.kind === 'identity_unavailable' || !record.submitAttempted) return;
     if (record.attempts >= 12 || Date.now() - record.startedAt >= 60_000) { update({ ...record, phase: 'paused' }); return; }
     const delay = record.phase === 'unavailable' ? Math.min(10_000, 1000 * 2 ** Math.min(record.attempts, 4)) : 1000;
-    const timer = window.setTimeout(() => { if (document.visibilityState === 'visible') void follow(); }, delay);
-    const visible = (): void => { if (document.visibilityState === 'visible') { if (Date.now() - record.startedAt >= 60_000) update({ ...record, phase: 'paused' }); else void follow(); } };
-    document.addEventListener('visibilitychange', visible);
-    return () => { window.clearTimeout(timer); document.removeEventListener('visibilitychange', visible); };
-  }, [record, stopFenced]);
+    const timer = window.setTimeout(() => { if (document.visibilityState === 'visible' && visible) void follow(); }, delay);
+    const onVisible = (): void => { if (document.visibilityState === 'visible' && visible) { if (Date.now() - record.startedAt >= 60_000) update({ ...record, phase: 'paused' }); else void follow(); } };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { window.clearTimeout(timer); document.removeEventListener('visibilitychange', onVisible); };
+  }, [record, stopFenced, visible]);
   const invoke = async (): Promise<void> => {
     if (!canInvoke || !binding || !graph) return;
     cancel(); const token = generation.current; const abort = new AbortController(); controller.current = abort;
@@ -115,9 +115,9 @@ export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, bindin
     setStopping(true); setStopResult({ text: c.stopping, alert: false });
     try {
       const result = await stopProcesses();
-      setStopResult(stopReplyFeedback(result, before, lang));
+      const feedback = stopReplyFeedback(result, before, lang); setStopResult(feedback); onStopOutcome?.(feedback, result.terminal?.run_id || null);
       try { onStop(await getProcessStatus()); } catch { /* The known Stop outcome remains visible. */ }
-    } catch (error) { setStopResult(stopFailureFeedback(error, lang)); }
+    } catch (error) { const feedback = stopFailureFeedback(error, lang); setStopResult(feedback); onStopOutcome?.(feedback); }
     finally { setStopping(false); }
   };
   return <article className="eos-control__card eos-control__card--typed"><h3>{c.title}</h3>
