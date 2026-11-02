@@ -35,4 +35,14 @@ describe('edge QoS inspector', () => {
     expect(host.querySelector('[role="alert"]')?.textContent).toContain('-20 to 19');
     expect(invalid).toHaveBeenLastCalledWith(true);
   });
+  it('requires a fresh owner check after a committed draft change', async () => {
+    const { change, invalid } = await render(admitted);
+    const priority = host.querySelector('input')!;
+    await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(priority, '5'); priority.dispatchEvent(new Event('input', { bubbles: true })); });
+    await act(async () => priority.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
+    expect(change).toHaveBeenCalledWith({ priority: 5 });
+    await act(async () => root.render(<EdgeQosInspector source={{ node: 'a', output: 'frame', priority: 5 }} current={false} readOnly={false} lang="en" onChange={change} onInvalidChange={invalid} />));
+    expect(host.querySelector('fieldset')?.disabled).toBe(true);
+    expect(host.textContent).toContain('Check graph to see IsOS route status');
+  });
 });
