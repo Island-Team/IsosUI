@@ -8,8 +8,10 @@ import { getNodeGraph, getNodeTypes, getProcessStatus, nodeGraphHasEditableShape
 import type { Language } from '@/types';
 import { activeGraphIsCurrent, defaultMovement, discoveredHardware, eosControlNodes, eosGraphNodes, hardwareKind, monitorBadge, movementTypes, movementValid, visionRuntimeState, type AdapterStatus, type EosGraphNode, type Movement, type MovementType } from './eos-control-model';
 import './eos-workbench.scss';
+import { WorkspacePanel } from './WorkspacePanel';
+import type { WorkspaceLayout, Surface, PanelLayout } from './workspace-layout';
 
-interface Props { lang: Language; onOpenGraph: () => void; onOpenLogs?: () => void; graphDirty: boolean }
+interface Props { lang: Language; onOpenGraph: () => void; onOpenLogs?: () => void; graphDirty: boolean; layout?: WorkspaceLayout; viewport?: { width: number; height: number }; onPanelChange?: (name: Surface, patch: Partial<PanelLayout>) => void; onRobot?: (id: string) => void; onStatus?: (status: ProcessStatus | null) => void; onConnectionError?: (message: string) => void; isRunStopFenced?: (runId: string | null) => boolean; onRunStopIntent?: (runId: string | null) => void; onStopOutcome?: (feedback: { text: string; alert: boolean }) => void }
 interface Health { state: string; code?: string | null; message?: string | null }
 interface Reading { status?: AdapterStatus; statusAt?: number; health?: Health; healthAt?: number; observation?: Record<string, unknown>; observationAt?: number; error?: string }
 const COPY = {
@@ -147,40 +149,44 @@ function Observation({ kind, value }: { kind: string; value?: Record<string, unk
   return <span>—</span>;
 }
 
-export function EosWorkbench({ lang, onOpenGraph, onOpenLogs, graphDirty }: Props): React.ReactElement {
+export function EosWorkbench({ lang, onOpenGraph, onOpenLogs, graphDirty, layout, viewport, onPanelChange, onRobot, onStatus, onConnectionError, isRunStopFenced, onRunStopIntent, onStopOutcome }: Props): React.ReactElement {
   const copy = COPY[lang];
   const [graphDoc, setGraphDoc] = useState<NodeGraphDocument | null>(null);
   const [readOnlyReason, setReadOnlyReason] = useState<string | null>(null);
   const [status, setStatus] = useState<ProcessStatus | null>(null);
   const [stopFenceRunId, setStopFenceRunId] = useState<string | null>(null);
   const stopFenceRef = useRef<string | null>(null);
-  const markStopIntent = (runId: string | null): void => { stopFenceRef.current = runId; setStopFenceRunId(runId); };
+  const markStopIntent = (runId: string | null): void => { stopFenceRef.current = runId; setStopFenceRunId(runId); onRunStopIntent?.(runId); };
   const [discovery, setDiscovery] = useState<EosDiscoveryNode[]>([]);
   const [typeDescriptions, setTypeDescriptions] = useState<Record<string, string>>({});
   const [readings, setReadings] = useState<Record<string, Reading>>({});
   const [error, setError] = useState('');
   const [clock, setClock] = useState(Date.now());
   const refresh = useCallback(async (): Promise<void> => {
+    let processAvailable = false;
     try {
       const [graph, catalog, process] = await Promise.all([getNodeGraph(), getNodeTypes().catch(() => null), getProcessStatus()]);
+      processAvailable = true;
       setTypeDescriptions(Object.fromEntries((catalog?.types || []).map((type) => [type.id, type.description || ''])));
       setReadOnlyReason(nodeGraphReadOnlyReason(graph, catalog?.types || null));
-      setGraphDoc((current) => nodeGraphHasEditableShape(graph.graph) ? current?.revision === graph.revision ? current : graph : null); setStatus(process); setError('');
+      setGraphDoc((current) => nodeGraphHasEditableShape(graph.graph) ? current?.revision === graph.revision ? current : graph : null); setStatus(process); onStatus?.(process); onConnectionError?.(''); onRobot?.(nodeGraphHasEditableShape(graph.graph) ? graph.graph.robot.id : 'unknown'); setError('');
       if (!nodeGraphReadOnlyReason(graph, catalog?.types || null) && activeGraphIsCurrent(graph.revision, process.active_revision)) {
         const found = await eosRequest<EosControlReply & { nodes: EosDiscoveryNode[] }>({ op: 'discover' });
         setDiscovery(found.nodes);
       } else { setDiscovery([]); setReadings({}); }
-    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); setReadOnlyReason('Graph compatibility could not be checked.'); setDiscovery([]); }
-  }, []);
+    } catch (reason) { const message = reason instanceof Error ? reason.message : String(reason); setError(message); setReadOnlyReason('Graph compatibility could not be checked.'); setDiscovery([]); if (!processAvailable) onStatus?.(null); onConnectionError?.(message); }
+  }, [onStatus, onRobot, onConnectionError]);
   useEffect(() => { void refresh(); const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refresh(); }, 5000); return () => window.clearInterval(timer); }, [refresh]);
-  const active = Boolean(graphDoc && !readOnlyReason && activeGraphIsCurrent(graphDoc.revision, status?.active_revision) && status?.state === 'running' && !graphDirty);
+  const panelVisible = (name: Surface): boolean => Boolean(layout?.[name].open && !layout?.[name].collapsed);
+  const panel = (name: Surface, title: string, children: React.ReactNode): React.ReactNode => layout && viewport && onPanelChange ? <WorkspacePanel title={title} lang={lang} layout={layout[name]} viewport={viewport} onChange={(patch) => onPanelChange(name, patch)}>{children}</WorkspacePanel> : children;
+  const active = Boolean(graphDoc && !readOnlyReason && activeGraphIsCurrent(graphDoc.revision, status?.active_revision) && status?.state === 'running' && !graphDirty && !isRunStopFenced?.(status?.run_id || null));
   const { active: visionActive, graph: visionGraph } = visionRuntimeState(graphDoc, status);
   const nodes = useMemo(() => graphDoc ? eosGraphNodes(graphDoc.graph) : [], [graphDoc]);
   const controls = useMemo(() => graphDoc ? eosControlNodes(graphDoc.graph) : [], [graphDoc]);
   const discoveredPaths = discovery.map((entry) => entry.path).join('|');
   const hardware = useMemo(() => graphDoc ? discoveredHardware(graphDoc.graph, discovery).slice(0, 12) : [], [graphDoc, discoveredPaths]);
   useEffect(() => {
-    if (!active || !hardware.length) return;
+    if (!active || !hardware.length || (layout && !panelVisible('control') && !panelVisible('monitor'))) return;
     let disposed = false; let pending = false;
     const poll = async (): Promise<void> => {
       if (disposed || pending || document.visibilityState !== 'visible') return;
@@ -209,8 +215,8 @@ export function EosWorkbench({ lang, onOpenGraph, onOpenLogs, graphDirty }: Prop
     };
     void poll(); const timer = window.setInterval(() => { void poll(); }, 2000);
     return () => { disposed = true; window.clearInterval(timer); };
-  }, [active, hardware.map(({ path }) => path).join('|')]);
-  return <main className="eos-workbench">
+  }, [active, layout?.control.open, layout?.control.collapsed, layout?.monitor.open, layout?.monitor.collapsed, hardware.map(({ path }) => path).join('|')]);
+  return <div className="eos-workbench">
     <header className="eos-workbench__header"><div><p className="isos-eyebrow">EOS · Aether v2</p><h1>{copy.title}</h1><p>{copy.intro}</p></div><div className="eos-control__actions"><button type="button" onClick={() => void refresh()}>{copy.refresh}</button><button type="button" onClick={onOpenGraph}>{copy.graph}</button></div></header>
     <nav className="eos-workbench__section-nav" aria-label={lang === 'cn' ? 'EOS 面板' : 'EOS sections'}><a href="#eos-controls">{copy.controls}</a><a href="#eos-monitor">{copy.monitor}</a><a href="#eos-vision">{lang === 'cn' ? '视觉' : 'Vision'}</a></nav>
     <div className="eos-workbench__revisions"><span>{copy.saved}: <code>{graphDoc?.revision || '—'}</code></span><span>{copy.active}: <code>{status?.active_revision || '—'}</code></span></div>
@@ -218,11 +224,11 @@ export function EosWorkbench({ lang, onOpenGraph, onOpenLogs, graphDirty }: Prop
     {readOnlyReason && <p role="alert" className="eos-control__warning">{lang === 'cn' ? '只读节点图：' : 'Read-only graph: '}{readOnlyReason}</p>}
     {!active && <p role="status" className="eos-control__warning">{copy.off}</p>}
     {error && <p role="alert" className="eos-control__warning">{error}</p>}
-    <section id="eos-controls" className="eos-workbench__section"><h2>{copy.controls}</h2><div className="eos-workbench__controls">{(graphDoc ? resolvePrimitiveBindings(graphDoc.graph) : []).map((binding) => <PrimitiveBaseCard key={binding.path} bindingPath={binding.path} typeDescriptions={typeDescriptions} stopFenced={Boolean(status?.run_id && status.run_id === stopFenceRunId)} isStopFenced={() => Boolean(status?.run_id && status.run_id === stopFenceRef.current)} onStopIntent={markStopIntent} lang={lang} graph={graphDoc} status={status} dirty={graphDirty} readOnly={Boolean(readOnlyReason)} readings={readings} clock={clock} onStop={setStatus} onOpenLogs={onOpenLogs || (() => { window.location.href = `/${lang}/isos?page=home&logs=1`; })} />)}{(!graphDoc || resolvePrimitiveBindings(graphDoc.graph).length === 0) && <PrimitiveBaseCard lang={lang} stopFenced={Boolean(status?.run_id && status.run_id === stopFenceRunId)} isStopFenced={() => Boolean(status?.run_id && status.run_id === stopFenceRef.current)} onStopIntent={markStopIntent} graph={graphDoc} status={status} dirty={graphDirty} readOnly={Boolean(readOnlyReason)} readings={readings} clock={clock} onStop={setStatus} onOpenLogs={onOpenLogs || (() => { window.location.href = `/${lang}/isos?page=home&logs=1`; })} />}</div></section>
-    <section id="eos-monitor" className="eos-workbench__section"><h2>{copy.monitor}</h2>{hardware.length ? <div className="eos-monitor__grid">{hardware.map((entry) => {
+    {panel('control', copy.controls, <section id="eos-controls" className="eos-workbench__section"><h2>{copy.controls}</h2><div className="eos-workbench__controls">{(graphDoc ? resolvePrimitiveBindings(graphDoc.graph) : []).map((binding) => <PrimitiveBaseCard visible={!layout || panelVisible('control')} key={binding.path} bindingPath={binding.path} typeDescriptions={typeDescriptions} stopFenced={Boolean(status?.run_id && (status.run_id === stopFenceRunId || isRunStopFenced?.(status.run_id)))} isStopFenced={() => Boolean(status?.run_id && (status.run_id === stopFenceRef.current || isRunStopFenced?.(status.run_id)))} onStopIntent={markStopIntent} onStopOutcome={onStopOutcome} lang={lang} graph={graphDoc} status={status} dirty={graphDirty} readOnly={Boolean(readOnlyReason)} readings={readings} clock={clock} onStop={(next) => { setStatus(next); onStatus?.(next); }} onOpenLogs={onOpenLogs || (() => { window.location.href = `/${lang}/isos?page=home&logs=1`; })} />)}{(!graphDoc || resolvePrimitiveBindings(graphDoc.graph).length === 0) && <PrimitiveBaseCard visible={!layout || panelVisible('control')} lang={lang} stopFenced={Boolean(status?.run_id && (status.run_id === stopFenceRunId || isRunStopFenced?.(status.run_id)))} isStopFenced={() => Boolean(status?.run_id && (status.run_id === stopFenceRef.current || isRunStopFenced?.(status.run_id)))} onStopIntent={markStopIntent} onStopOutcome={onStopOutcome} graph={graphDoc} status={status} dirty={graphDirty} readOnly={Boolean(readOnlyReason)} readings={readings} clock={clock} onStop={(next) => { setStatus(next); onStatus?.(next); }} onOpenLogs={onOpenLogs || (() => { window.location.href = `/${lang}/isos?page=home&logs=1`; })} />}</div></section>)}
+    {panel('monitor', copy.monitor, <section id="eos-monitor" className="eos-workbench__section"><h2>{copy.monitor}</h2>{hardware.length ? <div className="eos-monitor__grid">{hardware.map((entry) => {
       const kind = hardwareKind(entry.node.node_type); const reading = readings[entry.path]; const badge = monitorBadge(reading, clock);
       return <article className={`eos-monitor__card eos-monitor__card--${kind}`} key={entry.path}><header><h3>{entry.node.label || entry.node.id}</h3><span className={`eos-monitor__${badge}`}>{copy[badge]}</span></header><p><code>{kind}</code> · {copy.status}: {reading?.status?.state || '—'} · {copy.health}: {reading?.health?.state || '—'}</p>{reading?.status?.active_command_id && <p>{copy.command}: <code>{reading.status.active_command_id}</code></p>}{reading?.health?.message && <p>{reading.health.message}</p>}{reading?.error && <p role="alert">{reading.error}</p>}{kind !== 'camera' && <><h4>{copy.observation}</h4><Observation kind={kind || ''} value={reading?.observation} />{reading?.observationAt && <p>{copy.update}: {new Date(reading.observationAt).toLocaleTimeString()}</p>}</>}</article>;
-    })}</div> : <p>{copy.noHardware}</p>}</section>
-    <VisionPanel lang={lang} graph={visionGraph} active={visionActive} revision={visionGraph ? status?.active_revision || '' : ''} />
-  </main>;
+    })}</div> : <p>{copy.noHardware}</p>}</section>)}
+    {panel('vision', lang === 'cn' ? '视觉' : 'Vision', <VisionPanel lang={lang} graph={visionGraph} active={visionActive && (!layout || panelVisible('vision'))} revision={visionGraph ? status?.active_revision || '' : ''} />)}
+  </div>;
 }

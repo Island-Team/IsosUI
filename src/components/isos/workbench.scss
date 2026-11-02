@@ -67,3 +67,26 @@
 .isos-home__link-preview, .isos-home__readiness li { padding: 9px 12px; border: 1px solid var(--border); border-radius: 6px; overflow-wrap: anywhere; }
 .isos-home__link-preview p, .isos-home__readiness p { margin: 4px 0; }
 .isos-home__readiness { display: grid; gap: 8px; padding: 0; list-style: none; }
+
+.isos-workbench__safety { position: relative; z-index: 1000; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; padding: 7px 16px; background: var(--bg-elevated); border-bottom: 2px solid var(--warning); font-size: .8rem; }
+.isos-workbench__safety code { overflow-wrap: anywhere; }
+.isos-workbench__safety button { min-height: 30px; padding: 4px 12px; border: 1px solid var(--warning); border-radius: 4px; color: var(--text); background: var(--bg-elevated); font-weight: 700; }
+.isos-workbench__panel-menu { position: relative; z-index: 20; display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 12px; border-bottom: 1px solid var(--border); }
+.isos-workbench__panel-menu button { min-height: 30px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 4px; color: var(--text); background: var(--bg-elevated); }
+.isos-workbench__panel-menu button[aria-pressed="true"] { border-color: var(--primary); background: var(--primary-subtle); }
+.isos-workbench__panels { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; min-height: 0; max-height: 56vh; overflow: auto; padding: 8px; }
+.isos-workbench__panels .eos-workbench { display: contents; }
+.isos-workbench__panels .eos-workbench__header, .isos-workbench__panels .eos-workbench__section-nav, .isos-workbench__panels .eos-workbench__revisions, .isos-workbench__panels .eos-workbench > p { display: none; }
+.workspace-panel { flex: 1 1 min(450px, 100%); min-width: min(340px, 100%); max-width: 100%; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-elevated); box-shadow: var(--shadow-lg); }
+.workspace-panel[hidden], .workspace-panel__body[hidden] { display: none; }
+.workspace-panel--floating { position: fixed; flex: none; max-width: none; display: flex; flex-direction: column; }
+.workspace-panel__title { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 42px; padding: 4px 10px; border-bottom: 1px solid var(--border); cursor: move; touch-action: none; }
+.workspace-panel__title > div { display: flex; gap: 4px; }
+.workspace-panel button { min-height: 30px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; color: var(--text); background: var(--bg-elevated); }
+.workspace-panel__body { min-height: 0; overflow: auto; padding: 8px; }
+.workspace-panel--floating .workspace-panel__body { flex: 1; }
+.workspace-panel .eos-workbench__section { padding: 4px; border: 0; }
+.workspace-panel__resize { position: absolute; right: 0; bottom: 0; width: 24px; height: 24px; cursor: nwse-resize; background: linear-gradient(135deg, transparent 55%, var(--primary) 56%); touch-action: none; }
+.workspace-panel :focus-visible, .isos-workbench__safety button:focus-visible, .isos-workbench__panel-menu button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+@media (max-width: 720px) { .isos-workbench__panels { display: block; max-height: 48vh; } .workspace-panel { width: 100%; margin-bottom: 8px; } .workspace-panel__resize { display: none; } }
+@media (pointer: coarse) { .workspace-panel button, .isos-workbench__safety button, .isos-workbench__panel-menu button { min-height: 44px; min-width: 44px; } }

@@ -47,6 +47,32 @@ describe('P07 mounted panel with stub IsOS', () => {
     expect(new URL(logUrl!).searchParams.get('source')).toBe('eos');
   });
 
+  it('keeps the opaque same-run cursor while collapsed and rechecks status on reopen', async () => {
+    const urls: string[] = [];
+    const fetchMock = vi.fn(async (url: string) => {
+      urls.push(url);
+      return url.includes('/process-status') ? reply({ state: 'running', run_id: 'r7', run_id_state: 'known', processes: [] }) : reply(page('r7', 'eos_ready'));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { IsosLogsPanel } = await import('./IsosLogsPanel');
+    await act(async () => root.render(<IsosLogsPanel lang="en" visible onClose={() => undefined} />));
+    expect(urls.filter((url) => url.includes('/logs'))).toHaveLength(1);
+    await act(async () => root.render(<IsosLogsPanel lang="en" visible={false} onClose={() => undefined} />));
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+    expect(urls.filter((url) => url.includes('/logs'))).toHaveLength(1);
+    await act(async () => root.render(<IsosLogsPanel lang="en" visible onClose={() => undefined} />));
+    const logs = urls.filter((url) => url.includes('/logs'));
+    expect(logs).toHaveLength(2);
+    expect(new URL(logs[1]).searchParams.get('cursor')).toBe('lc1.r7');
+    expect(urls.filter((url) => url.includes('/process-status'))).toHaveLength(2);
+    await act(async () => root.render(<></>));
+    await act(async () => root.render(<IsosLogsPanel lang="en" visible onClose={() => undefined} />));
+    const reopened = urls.filter((url) => url.includes('/logs'));
+    expect(reopened).toHaveLength(3);
+    expect(new URL(reopened[2]).searchParams.has('cursor')).toBe(false);
+    expect(urls.filter((url) => url.includes('/process-status'))).toHaveLength(3);
+  });
+
   it('keeps retained rows on rotation, shows gap, then clears them on a new run', async () => {
     const pages = [
       page('r7', 'eos_ready', [event('deployment_ready', 'r7')]),
