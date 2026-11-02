@@ -3,10 +3,10 @@ import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CatalogBrowser, catalogTypeKey } from './CatalogBrowser';
+import { CatalogBrowser } from './CatalogBrowser';
 import { CatalogSelector, settingOptionGroup, unavailableSelections } from './CatalogSelector';
-import { optionResponseIsCurrent, pairedDeviceSettings } from './catalog-options';
-import type { NodeOptions, NodeTypeDefinition, SettingOptionGroup } from '@/services/isos/node-graph';
+import { catalogSelectionBlocks, optionResponseIsCurrent, pairedDeviceSettings } from './catalog-options';
+import { catalogTypeKey, type NodeOptions, type NodeTypeDefinition, type SettingOptionGroup } from '../../services/isos/node-graph';
 
 const group: SettingOptionGroup = { node_path: 'eos/process/mujoco/simulator', setting: 'scene', selected: 'pick-place', options: [
   { value: 'navigation', label: 'Navigation', description: 'Drive to a goal', available: true, reason_code: null, reason: null },
@@ -62,6 +62,16 @@ describe('P03 catalog options', () => {
     await pending;
     expect(accepted).not.toHaveBeenCalled();
     expect(optionResponseIsCurrent(2, latest, 'new draft', 'new draft')).toBe(true);
+    expect(optionResponseIsCurrent(1, 2, 'same draft', 'same draft')).toBe(false);
+  });
+
+  it('blocks an absent required scene and an unavailable selected scene', () => {
+    const type: NodeTypeDefinition = { id: 'eos.process.mujoco@v0.1', core: 'eos', layer: 'process', group: 'mujoco', kind: 'software', lifecycle: 'process', capabilities: [], settings: [{ name: 'scene', data_type: 'string', required: true, selector: { provider: 'package', resource: 'scene', package_from: 'node.package' } }], inputs: [], outputs: [] };
+    const entry = { path: group.node_path, definition: type, node: { id: 'simulator', node_type: type.id, label: 'Simulator', description: '', settings: {} as Record<string, unknown> } };
+    expect(catalogSelectionBlocks('0.1.0', [entry], { ...options, setting_options: [{ ...group, selected: null }] })).toBe(true);
+    entry.node.settings.scene = 'pick-place';
+    expect(catalogSelectionBlocks('0.1.0', [entry], options)).toBe(true);
+    expect(catalogSelectionBlocks('1.0.0', [entry], options)).toBe(false);
   });
 
   it('updates the two MuJoCo device fields as one draft edit', () => {

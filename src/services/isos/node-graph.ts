@@ -15,6 +15,9 @@ export interface NodeTypeDefinition {
   outputs: PortDefinition[];
   safety_adapter_type?: string | null;
 }
+export function catalogTypeKey(type: Pick<NodeTypeDefinition, 'core' | 'layer' | 'group' | 'id'>): string {
+  return JSON.stringify([type.core, type.layer, type.group, type.id]);
+}
 export interface PortDefinition { name: string; data_type: string; required: boolean; cardinality?: 'one' | 'many'; description?: string; expected_rate_hz?: number | null; transport?: 'in_process' | 'unix_socket' | 'websocket' | 'ros2' | string; data_class?: string }
 export interface DataSchema { title?: string; description?: string; type?: string; properties?: Record<string, { type?: string; description?: string; 'x-unit'?: string; minimum?: number; maximum?: number }>; required?: string[]; [key: string]: unknown }
 export interface DataTypeDefinition { id: string; version: string; purpose: string; media_type: string; codec: string; schema: DataSchema; max_payload_bytes: number }
@@ -143,12 +146,12 @@ export function nodeGraphReadOnlyReason(document: NodeGraphDocument, types: Node
   if (!nodeGraphHasEditableShape(document.graph)) return 'This graph structure cannot be edited by this IsosUI build.';
   if (document.graph.version !== '1.0.0' && document.graph.version !== '0.1.0') return `Unsupported graph version ${document.graph.version}.`;
   if (!types) return 'Node type catalog is unavailable.';
-  const known = new Set(types.map((type) => type.id));
+  const known = new Set(types.map(catalogTypeKey));
   for (const [coreId, core] of Object.entries(document.graph.cores)) {
     for (const [layerId, layer] of Object.entries(core.layers)) {
       for (const [groupId, group] of Object.entries(layer.groups)) {
         for (const [nodeId, node] of Object.entries(group.nodes)) {
-          if (!known.has(node.node_type)) return `Unsupported node type ${node.node_type} at ${coreId}/${layerId}/${groupId}/${nodeId}.`;
+          if (!known.has(catalogTypeKey({ core: coreId, layer: layerId, group: groupId, id: node.node_type }))) return `Unsupported node type ${node.node_type} at ${coreId}/${layerId}/${groupId}/${nodeId}.`;
         }
       }
     }

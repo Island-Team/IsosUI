@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, { Background, Handle, MiniMap, Position, ReactFlowProvider, SelectionMode, type Connection, type Edge, type Node, type NodeChange, type NodeProps, type ReactFlowInstance } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { type NodeOptions, type PrimitiveSpec, applyNodeGraph, controlProcesses, stopProcesses, getBackends, getNodeGraph, getNodeSets, getNodeTypes, getProcessStatus, getCoreReadiness, getNodeOptions, nodeGraphHasEditableShape, nodeGraphReadOnlyReason, previewNodeSet, validateNodeGraph, type BackendPackage, type CoreReadiness, type DataTypeDefinition, type NodeGraph, type NodeGraphDiagnostic, type NodeInstance, type NodeSetDefinition, type NodeSetPreview, type NodeTypeDefinition, type ProcessStatus } from '@/services/isos/node-graph';
+import { catalogTypeKey, type NodeOptions, type PrimitiveSpec, applyNodeGraph, controlProcesses, stopProcesses, getBackends, getNodeGraph, getNodeSets, getNodeTypes, getProcessStatus, getCoreReadiness, getNodeOptions, nodeGraphHasEditableShape, nodeGraphReadOnlyReason, previewNodeSet, validateNodeGraph, type BackendPackage, type CoreReadiness, type DataTypeDefinition, type NodeGraph, type NodeGraphDiagnostic, type NodeInstance, type NodeSetDefinition, type NodeSetPreview, type NodeTypeDefinition, type ProcessStatus } from '@/services/isos/node-graph';
 import type { Language } from '@/types';
 import { addNode, bindPrimitiveTarget, canonicalNodePath, connectNodes, disconnectInput, graphNodes, inputSources, nextNodeId, nodePath, removeNode, removedNodePaths, renameNode, sameNodePath, updateNode, type GraphNode } from './node-graph-edits';
 import { interfaceVisual, nodeSummary, nodeVisualStyle, portVisual, dataTypeColor } from './node-visuals';
@@ -16,9 +16,9 @@ import { processRunFeedback } from './process-run-feedback';
 import { stopReplyFeedback, stopFailureFeedback } from './stop-feedback';
 import { browserLog } from '@/services/isos/browser-logs';
 import { draftValidationStamp, validationDisplayIsCurrent, validationResponseIsCurrent, type DraftValidationStamp } from './draft-validation';
-import { CatalogSelector, settingOptionGroup, unavailableSelections } from './CatalogSelector';
-import { CatalogBrowser, catalogTypeKey } from './CatalogBrowser';
-import { optionResponseIsCurrent, pairedDeviceSettings, type OptionSnapshot } from './catalog-options';
+import { CatalogSelector, settingOptionGroup } from './CatalogSelector';
+import { CatalogBrowser } from './CatalogBrowser';
+import { catalogSelectionBlocks, optionResponseIsCurrent, pairedDeviceSettings, type OptionSnapshot } from './catalog-options';
 import './node-graph-manager.scss';
 
 interface Props { lang: Language; visible?: boolean; onDirtyChange?: (dirty: boolean) => void }
@@ -190,6 +190,7 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
   const setMessage = (text: string, error = false): void => setNotice({ text, error });
   const [optionSnapshot, setOptionSnapshot] = useState<OptionSnapshot | null>(null);
   const optionRequest = useRef(0);
+  const [packageGeneration, setPackageGeneration] = useState(0);
   const [busy, setBusy] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [readiness, setReadiness] = useState<CoreReadiness | null>(null);
@@ -217,10 +218,10 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
       if (optionResponseIsCurrent(requestId, optionRequest.current, draft, currentDraft.current)) setOptionSnapshot({ draft, options });
     }).catch(() => { if (requestId === optionRequest.current) setOptionSnapshot(null); }); }, 250);
     return () => { window.clearTimeout(timer); optionRequest.current += 1; };
-  }, [graph, readOnly]);
+  }, [graph, readOnly, packageGeneration]);
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
   const entries = useMemo(() => graph ? graphNodes(graph, types) : [], [graph, types]);
-  const selectorBlocked = graph?.version === '0.1.0' && (!nodeOptions || unavailableSelections(nodeOptions).length > 0 || entries.some((entry) => entry.definition?.settings.some((field) => field.selector && !settingOptionGroup(nodeOptions, entry.path, field.name)) || (entry.definition?.lifecycle === 'adapter' && entry.node.adapter?.type === 'mujoco-v2' && (!settingOptionGroup(nodeOptions, entry.path, 'adapter.settings.device_id') || !settingOptionGroup(nodeOptions, entry.path, 'adapter.settings.simulator_node') || entry.node.adapter.settings?.device_id !== entry.node.adapter.settings?.simulator_node))));
+  const selectorBlocked = catalogSelectionBlocks(graph?.version, entries, nodeOptions);
   useEffect(() => { if (graph) browserLog('debug', `Graph revision ${revision.slice(0, 8) || 'unsaved'}: ${entries.length} nodes; visible=${visible}`); }, [graph, revision, visible]);
   useEffect(() => {
     if (!visible || !flowInstance || !entries.length) return;
@@ -332,7 +333,7 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
     return () => { window.clearInterval(statusTimer); window.clearInterval(readinessTimer); };
   }, [visible]);
   useEffect(() => {
-    const reloadCatalog = (): void => { void Promise.all([getNodeTypes(), getNodeSets(), getNodeGraph()]).then(([catalog, sets, document]) => {
+    const reloadCatalog = (): void => { optionRequest.current += 1; setOptionSnapshot(null); setPackageGeneration((value) => value + 1); void Promise.all([getNodeTypes(), getNodeSets(), getNodeGraph()]).then(([catalog, sets, document]) => {
       setTypes(catalog.types); setDataTypes(catalog.data_types || []); setPrimitiveSpecs(catalog.primitive_specs || []); setNodeSets(sets.sets); setSetKey(''); setSetValues({}); setSetPreview(null);
       setReadOnlyReason(document.revision === revision
         ? nodeGraphReadOnlyReason({ ...document, graph: graph || document.graph }, catalog.types)

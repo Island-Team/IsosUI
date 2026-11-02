@@ -30,6 +30,21 @@ describe('v1 node graph edits', () => {
     expect(entry.node.capabilities).toEqual(['rgb8']);
     expect(entry.node.movement).toBeUndefined();
   });
+  it('resolves duplicate type IDs by the complete catalog placement', () => {
+    const other = { ...camera, group: 'inspection', description: 'Other placement' };
+    const graph = addNode(addNode(empty(), camera, 'front'), other, 'second');
+    const entries = graphNodes(graph, [other, camera]);
+    expect(entries.find((entry) => entry.path === 'eos/hardware/camera/front')?.definition).toBe(camera);
+    expect(entries.find((entry) => entry.path === 'eos/hardware/inspection/second')?.definition).toBe(other);
+    expect(graphNodes(graph, [camera])[1].definition).toBeUndefined();
+  });
+  it('does not invent hardware values for a new target type', () => {
+    const target = { ...base, id: 'eos.hardware.base@v0.1' };
+    const node = graphNodes(addNode(empty(), target, 'new-base'), [target])[0].node;
+    expect(node.adapter).toBeUndefined();
+    expect(node.movement).toBeUndefined();
+    expect(node.observation).toBeUndefined();
+  });
 
   it('connects only matching typed ports and admits one source per input', () => {
     const graph = addNode(addNode(empty(), dispatcher, 'control'), base, 'drive');

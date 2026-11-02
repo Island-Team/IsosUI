@@ -1,10 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import type { Language } from '@/types';
-import type { NodeTypeDefinition } from '@/services/isos/node-graph';
-
-export function catalogTypeKey(type: Pick<NodeTypeDefinition, 'core' | 'layer' | 'group' | 'id'>): string {
-  return JSON.stringify([type.core, type.layer, type.group, type.id]);
-}
+import { catalogTypeKey, type NodeTypeDefinition } from '../../services/isos/node-graph';
 
 export function CatalogBrowser({ types, value, lang, onChange }: { types: NodeTypeDefinition[]; value: string; lang: Language; onChange: (id: string) => void }): React.ReactElement {
   const selected = types.find((type) => catalogTypeKey(type) === value);

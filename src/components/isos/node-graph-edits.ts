@@ -1,4 +1,4 @@
-import type { NodeGraph, NodeInstance, NodeSource, NodeTypeDefinition } from '@/services/isos/node-graph';
+import { catalogTypeKey, type NodeGraph, type NodeInstance, type NodeSource, type NodeTypeDefinition } from '../../services/isos/node-graph';
 
 export interface GraphNode { path: string; node: NodeInstance; definition?: NodeTypeDefinition }
 export const nodeIdPattern = /^[a-z][a-z0-9_-]{0,47}$/;
@@ -29,12 +29,12 @@ export function nodePath(definition: Pick<NodeTypeDefinition, 'core' | 'layer' |
 }
 
 export function graphNodes(graph: NodeGraph, types: NodeTypeDefinition[]): GraphNode[] {
-  const definitions = new Map(types.map((type) => [type.id, type]));
+  const definitions = new Map(types.map((type) => [catalogTypeKey(type), type]));
   return Object.entries(graph.cores).flatMap(([coreId, core]) => Object.entries(core.layers).flatMap(([layerId, layer]) =>
     Object.entries(layer.groups).flatMap(([groupId, group]) => Object.entries(group.nodes).map(([id, node]) => ({
       path: `${coreId}/${layerId}/${groupId}/${id}`,
       node,
-      definition: definitions.get(node.node_type),
+      definition: definitions.get(catalogTypeKey({ core: coreId, layer: layerId, group: groupId, id: node.node_type })),
     })))));
 }
 
@@ -55,6 +55,8 @@ function nodeSlot(graph: NodeGraph, path: string): { nodes: Record<string, NodeI
 
 export function makeNode(id: string, definition: NodeTypeDefinition): NodeInstance {
   const node: NodeInstance = { id, node_type: definition.id, label: id, description: '', capabilities: [], settings: {}, inputs: {} };
+  // Target types receive required values from the operator or a verified node set.
+  if (definition.id.endsWith('@v0.1')) return node;
   if (definition.lifecycle === 'adapter') {
     node.frame_id = `${id}_frame`;
     node.adapter = { type: 'mock-cxx' };

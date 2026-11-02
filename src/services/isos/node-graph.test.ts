@@ -20,6 +20,11 @@ describe('graph reader compatibility', () => {
     expect(nodeGraphReadOnlyReason({ revision: 'saved', graph }, null)).toContain('catalog is unavailable');
     expect(nodeGraphReadOnlyReason({ revision: 'saved', graph }, [knownType])).toBeNull();
   });
+  it('rejects a registered type ID at an unregistered placement', () => {
+    const misplaced = structuredClone(graph);
+    misplaced.cores.eos.layers.dispatcher.groups.control.nodes.command.node_type = knownType.id;
+    expect(nodeGraphReadOnlyReason({ revision: 'saved', graph: misplaced }, [{ ...knownType, group: 'different' }])).toContain('Unsupported node type');
+  });
 
   it('keeps a future graph tree in raw inspection when its shape is unknown', () => {
     const future = { version: '0.2.0', robot: { id: 'test', name: 'Test' }, domains: {} } as unknown as NodeGraph;
