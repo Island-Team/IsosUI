@@ -20,4 +20,4 @@ UI 用精确 `(core, layer, group, type_id)` 查找注册记录，不用翻译�
 
 编辑器读取注册类型描述与设置元数据，按精确 core/layer/group/type 四元组浏览，并针对每份草稿请求 P03 选项。选择器以精确 `(node_path, setting)` 为键；已保存但不可用的 ID 和所有者原因仍可见。MuJoCo 设备选择在一次编辑中同时更新适配器的两个设备字段。较旧的 POST 响应被丢弃，包括草稿字节不变而软件包改变的情况。注册类型按完整位置四元组匹配，新建 `@v0.1` 节点不填入猜测的硬件值。在当前选项返回且必需或不可用值修复前，保存及保存并运行均禁用；**检查节点图**仍可用，最终 Apply 与 Run 仍由 IsOS 校验。
 
-在本仓库运行 `npm ci`、`npm run typecheck`、`npm test`、`npm run build`、`git diff --check`，以及 `logs/test/20261102-u01-catalog-selector/` 中记录的本地链接检查。完整测试通过（25 个文件、125 个测试），类型检查、本地及托管构建、清单验证和四份文档的本地链接检查均通过。完整输出保存在被忽略的 `logs/test/20261102-u01-catalog-selector/`。最终检查使用 Node.js 22.23.4 和 npm 10.9.9。
+在本仓库运行 `npm ci`、`npm run typecheck`、`npm test`、`npm run build`、`git diff --check`，以及 `logs/test/20261102-u01-catalog-selector/` 中记录的本地链接检查。完整测试通过（25 个文件、126 个测试），类型检查、本地及托管构建、清单验证和四份文档的本地链接检查均通过。完整输出保存在被忽略的 `logs/test/20261102-u01-catalog-selector/`。最终检查使用 Node.js 22.23.4 和 npm 10.9.9。

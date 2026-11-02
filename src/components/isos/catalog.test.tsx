@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CatalogBrowser } from './CatalogBrowser';
 import { CatalogSelector, settingOptionGroup, unavailableSelections } from './CatalogSelector';
-import { catalogReloadIsCurrent, catalogSelectionBlocks, optionResponseIsCurrent, pairedDeviceSettings } from './catalog-options';
+import { catalogReloadGraph, catalogReloadIsCurrent, catalogSelectionBlocks, optionResponseIsCurrent, pairedDeviceSettings } from './catalog-options';
 import { catalogTypeKey, type NodeOptions, type NodeTypeDefinition, type SettingOptionGroup } from '../../services/isos/node-graph';
 
 const group: SettingOptionGroup = { node_path: 'eos/process/mujoco/simulator', setting: 'scene', selected: 'pick-place', options: [
@@ -76,6 +76,18 @@ describe('P03 catalog options', () => {
     resolveOld('old catalog');
     await pending;
     expect(published).toEqual(['new catalog']);
+  });
+
+  it('keeps the latest edited draft when a package reload resolves', async () => {
+    const saved = { version: '0.1.0', robot: { id: 'robot', name: 'Before' }, cores: {} };
+    const edited = { ...saved, robot: { ...saved.robot, name: 'After edit' } };
+    let resolveReload!: (value: typeof saved) => void;
+    const reload = new Promise<typeof saved>((resolve) => { resolveReload = resolve; });
+    const current = { graph: saved, revision: 'same-revision' };
+    const pending = reload.then((response) => catalogReloadGraph('same-revision', current.revision, current.graph, response));
+    current.graph = edited;
+    resolveReload(saved);
+    expect(await pending).toBe(edited);
   });
 
   it('blocks an absent required scene and an unavailable selected scene', () => {

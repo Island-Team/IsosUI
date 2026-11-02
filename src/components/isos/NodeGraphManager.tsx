@@ -18,7 +18,7 @@ import { browserLog } from '@/services/isos/browser-logs';
 import { draftValidationStamp, validationDisplayIsCurrent, validationResponseIsCurrent, type DraftValidationStamp } from './draft-validation';
 import { CatalogSelector, settingOptionGroup } from './CatalogSelector';
 import { CatalogBrowser } from './CatalogBrowser';
-import { catalogReloadIsCurrent, catalogSelectionBlocks, optionResponseIsCurrent, pairedDeviceSettings, type OptionSnapshot } from './catalog-options';
+import { catalogReloadGraph, catalogReloadIsCurrent, catalogSelectionBlocks, optionResponseIsCurrent, pairedDeviceSettings, type OptionSnapshot } from './catalog-options';
 import './node-graph-manager.scss';
 
 interface Props { lang: Language; visible?: boolean; onDirtyChange?: (dirty: boolean) => void }
@@ -191,6 +191,10 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
   const [optionSnapshot, setOptionSnapshot] = useState<OptionSnapshot | null>(null);
   const optionRequest = useRef(0);
   const catalogReloadRequest = useRef(0);
+  const graphForCatalog = useRef(graph);
+  const revisionForCatalog = useRef(revision);
+  graphForCatalog.current = graph;
+  revisionForCatalog.current = revision;
   const [packageGeneration, setPackageGeneration] = useState(0);
   const [busy, setBusy] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -337,13 +341,14 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
     const reloadCatalog = (): void => { const requestId = ++catalogReloadRequest.current; optionRequest.current += 1; setOptionSnapshot(null); setPackageGeneration((value) => value + 1); void Promise.all([getNodeTypes(), getNodeSets(), getNodeGraph()]).then(([catalog, sets, document]) => {
       if (!catalogReloadIsCurrent(requestId, catalogReloadRequest.current)) return;
       setTypes(catalog.types); setDataTypes(catalog.data_types || []); setPrimitiveSpecs(catalog.primitive_specs || []); setNodeSets(sets.sets); setSetKey(''); setSetValues({}); setSetPreview(null);
-      setReadOnlyReason(document.revision === revision
-        ? nodeGraphReadOnlyReason({ ...document, graph: graph || document.graph }, catalog.types)
+      const currentGraph = catalogReloadGraph(document.revision, revisionForCatalog.current, graphForCatalog.current, document.graph);
+      setReadOnlyReason(currentGraph
+        ? nodeGraphReadOnlyReason({ ...document, graph: currentGraph }, catalog.types)
         : 'Saved graph revision changed; refresh before editing.');
     }).catch((error: unknown) => { if (catalogReloadIsCurrent(requestId, catalogReloadRequest.current)) { setReadOnlyReason('Graph compatibility could not be checked.'); setMessage(error instanceof Error ? error.message : String(error)); } }); };
     window.addEventListener('isosui:packages-changed', reloadCatalog);
     return () => { window.removeEventListener('isosui:packages-changed', reloadCatalog); catalogReloadRequest.current += 1; };
-  }, [graph, revision]);
+  }, []);
   useEffect(() => { if (!graph) return; const key = graphLayoutKey(graph); const timer = window.setTimeout(() => localStorage.setItem(key, JSON.stringify(positions)), 250); return () => window.clearTimeout(timer); }, [graph?.robot.id, positions]);
   useEffect(() => { if (graph) localStorage.setItem(graphMirrorKey(graph), JSON.stringify(mirrors)); }, [graph?.robot.id, mirrors]);
   useEffect(() => { for (const id of ['eos', 'egia'] as const) localStorage.setItem(`isosui-graph-${id}-window`, JSON.stringify(coreWindows[id])); }, [coreWindows]);

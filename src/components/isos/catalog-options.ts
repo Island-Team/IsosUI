@@ -1,4 +1,4 @@
-import type { NodeOptions } from '@/services/isos/node-graph';
+import type { NodeGraph, NodeOptions } from '@/services/isos/node-graph';
 import type { GraphNode } from './node-graph-edits';
 import { settingOptionGroup, unavailableSelections } from './CatalogSelector';
 
@@ -10,6 +10,10 @@ export function optionResponseIsCurrent(requestId: number, latestRequestId: numb
 
 export function catalogReloadIsCurrent(requestId: number, latestRequestId: number): boolean {
   return requestId === latestRequestId;
+}
+
+export function catalogReloadGraph(savedRevision: string, currentRevision: string, currentGraph: NodeGraph | null, savedGraph: NodeGraph): NodeGraph | null {
+  return savedRevision === currentRevision ? currentGraph || savedGraph : null;
 }
 
 export function pairedDeviceSettings(settings: Record<string, unknown>, value: string): Record<string, unknown> {
