@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { Language } from '../../types';
-import { controlProcesses, getNodeGraph, getProcessStatus, type NodeGraphDocument, type ProcessStatus } from '../../services/isos/node-graph';
+import { getNodeGraph, getProcessStatus, stopProcesses, type NodeGraphDocument, type ProcessStatus } from '../../services/isos/node-graph';
 import { eosMonotonicTime, resolveBaseBindings, sendFence, validBodyVelocity, sendPrimitiveBase, type BodyVelocity } from '../../services/eos/primitive-command';
 import { readPrimitiveResult, ResultClientError, terminalResult } from '../../services/eos/primitive-result';
 import { acceptPrimitiveResult, newPrimitiveRecord, pollAllowed, primitiveError, resultFence, type PrimitiveRecord } from './primitive-result-state';
 import { monitorBadge, type AdapterStatus } from './eos-control-model';
+import { stopReplyFeedback, stopTransportFeedback, type StopFeedback } from './stop-feedback';
 
 interface Reading { status?: AdapterStatus; statusAt?: number; health?: { state: string }; healthAt?: number }
 interface Props { lang: Language; graph: NodeGraphDocument | null; status: ProcessStatus | null; dirty: boolean; readOnly: boolean;
@@ -22,7 +23,8 @@ export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, readin
     validBodyVelocity({ type: 'body_velocity', x_m_s: 0, y_m_s: 0, yaw_rad_s: 0, valid_for_ms: 1 }, candidate.target)) : undefined;
   const [value, setValue] = useState<BodyVelocity>({ type: 'body_velocity', x_m_s: 0, y_m_s: 0, yaw_rad_s: 0, valid_for_ms: 100 });
   const [record, setRecord] = useState<PrimitiveRecord | null>(null);
-  const [stopResult, setStopResult] = useState('');
+  const [stopResult, setStopResult] = useState<StopFeedback | null>(null);
+  const [stoppedRunId, setStoppedRunId] = useState<string | null>(null);
   const [stopping, setStopping] = useState(false);
   const generation = useRef(0);
   const graphFlags = useRef({ dirty, readOnly });
@@ -45,7 +47,7 @@ export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, readin
     if (fence !== 'current') seal(current, fence);
   }, [status?.run_id, status?.run_id_state, status?.saved_revision, status?.active_revision, status?.state]);
   const targetLive = binding && monitorBadge(readings[binding.targetPath], clock) === 'live';
-  const canInvoke = Boolean(binding && targetLive && graph && sendFence(graph.revision, status, dirty, readOnly) && validBodyVelocity(value, binding.target) && record?.phase !== 'sending' && !stopping);
+  const canInvoke = Boolean(binding && targetLive && graph && sendFence(graph.revision, status, dirty, readOnly) && status?.run_id !== stoppedRunId && validBodyVelocity(value, binding.target) && record?.phase !== 'sending' && !stopping);
   const follow = async (manual = false): Promise<void> => {
     const current = recordRef.current;
     if (!current || inFlight.current !== null || !current.submitAttempted || current.phase === 'sending' || current.phase === 'terminal' || (current.result && terminalResult(current.result.status)) || current.error?.kind === 'old_run' ||
@@ -99,13 +101,15 @@ export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, readin
     finally { if (controller.current === abort) controller.current = null; }
   };
   const stop = async (): Promise<void> => {
-    cancel(); if (recordRef.current && recordRef.current.phase !== 'terminal' && recordRef.current.phase !== 'unavailable') update({ ...recordRef.current, phase: 'paused' });
-    setStopping(true); setStopResult(c.stopping);
-    try { const result = await controlProcesses('stop'); onStop(result); setStopResult(`${result.state || 'unknown'}${result.last_error ? `: ${result.last_error}` : ''}`);
-      const current = recordRef.current;
-      if (current) { const fence = resultFence(current, result); if (fence !== 'current') seal(current, fence); }
-    }
-    catch (error) { setStopResult(error instanceof Error ? error.message : String(error)); }
+    const before = status;
+    setStoppedRunId(before?.run_id || null);
+    if (recordRef.current) seal(recordRef.current, 'old_run'); else cancel();
+    setStopping(true); setStopResult({ text: c.stopping, alert: false });
+    try {
+      const result = await stopProcesses();
+      setStopResult(stopReplyFeedback(result, before, lang));
+      try { onStop(await getProcessStatus()); } catch { /* The known Stop outcome remains visible. */ }
+    } catch { setStopResult(stopTransportFeedback(lang)); }
     finally { setStopping(false); }
   };
   const field = (name: keyof Omit<BodyVelocity, 'type'>, label: string, unit: string, max: number): React.ReactElement => <label className="eos-control__field"><span>{label} <small>{unit} (±{max})</small></span><input type="number" step={name === 'valid_for_ms' ? 1 : 'any'} min={name === 'valid_for_ms' ? 1 : -max} max={max} value={Number.isNaN(value[name]) ? '' : value[name]} onChange={(event) => setValue((before) => ({ ...before, [name]: event.target.value.trim() ? Number(event.target.value) : Number.NaN }))} /></label>;
@@ -116,7 +120,7 @@ export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, readin
       {!validBodyVelocity(value, binding.target) && <p role="alert">{c.invalid}</p>}</> : <p>{c.missing}</p>}
     {!canInvoke && <p role="status" className="eos-control__warning">{c.gated}</p>}
     <div className="eos-control__actions"><button type="button" className="eos-control__primary" disabled={!canInvoke} onClick={() => void invoke()}>{c.invoke}</button><button type="button" disabled={stopping} onClick={() => void stop()}>{stopping ? c.stopping : c.stop}</button><button type="button" onClick={onOpenLogs}>{c.logs}</button></div>
-    {stopResult && <p role="status">{c.stopStatus}: {stopResult}</p>}
+    {stopResult && <p role={stopResult.alert ? 'alert' : 'status'}>{c.stopStatus}: {stopResult.text}</p>}
     {record && <div className="eos-control__result" role={record.result?.status === 'Failed' || record.result?.status === 'Rejected' || record.phase === 'unavailable' ? 'alert' : 'status'}><p>{c.command}: <code>{record.commandId}</code></p><p>{c.binding}: <code>{record.bindingPath}</code></p><p>{c.revision}: <code>{record.activeRevision}</code></p><p>{c.result}: <strong>{record.result?.status || (record.phase === 'sending' ? c.sending : c.unavailable)}</strong>{record.result?.reason ? ` — ${record.result.reason}` : ''}</p>{record.phase === 'paused' && <p>{c.paused}</p>}{record.phase === 'unavailable' && record.result && <p>{record.error?.kind === 'old_run' ? c.oldRun : c.unavailable}</p>}{record.error && <p>{record.error.message}</p>}<p>{c.updated}: {new Date(record.updatedAt).toLocaleTimeString()}</p>{record.submitAttempted && ['following', 'paused', 'unavailable'].includes(record.phase) && !(record.result && terminalResult(record.result.status)) && record.error?.kind !== 'old_run' && <button type="button" onClick={() => void follow(true)}>{c.refresh}</button>}</div>}
   </article>;
 }

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, { Background, Handle, MiniMap, Position, ReactFlowProvider, SelectionMode, type Connection, type Edge, type Node, type NodeChange, type NodeProps, type ReactFlowInstance } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { type NodeOptions, type PrimitiveSpec, applyNodeGraph, backendSceneChoices, controlProcesses, getBackends, getNodeGraph, getNodeSets, getNodeTypes, getProcessStatus, getCoreReadiness, getNodeOptions, nodeGraphHasEditableShape, nodeGraphReadOnlyReason, previewNodeSet, validateNodeGraph, type BackendPackage, type CoreReadiness, type DataTypeDefinition, type NodeGraph, type NodeGraphDiagnostic, type NodeInstance, type NodeSetDefinition, type NodeSetPreview, type NodeTypeDefinition, type ProcessStatus } from '@/services/isos/node-graph';
+import { type NodeOptions, type PrimitiveSpec, applyNodeGraph, backendSceneChoices, controlProcesses, stopProcesses, getBackends, getNodeGraph, getNodeSets, getNodeTypes, getProcessStatus, getCoreReadiness, getNodeOptions, nodeGraphHasEditableShape, nodeGraphReadOnlyReason, previewNodeSet, validateNodeGraph, type BackendPackage, type CoreReadiness, type DataTypeDefinition, type NodeGraph, type NodeGraphDiagnostic, type NodeInstance, type NodeSetDefinition, type NodeSetPreview, type NodeTypeDefinition, type ProcessStatus } from '@/services/isos/node-graph';
 import type { Language } from '@/types';
 import { addNode, bindPrimitiveTarget, canonicalNodePath, connectNodes, disconnectInput, graphNodes, inputSources, nextNodeId, nodePath, removeNode, removedNodePaths, renameNode, sameNodePath, updateNode, type GraphNode } from './node-graph-edits';
 import { interfaceVisual, nodeSummary, nodeVisualStyle, portVisual, dataTypeColor } from './node-visuals';
@@ -13,6 +13,7 @@ import { IsosLogsPanel } from './IsosLogsPanel';
 import { edgeContracts, edgeInputDiagnostics } from './edge-idl';
 import { EgiaWorkbench } from './EgiaWorkbench';
 import { processRunFeedback } from './process-run-feedback';
+import { stopReplyFeedback, stopTransportFeedback } from './stop-feedback';
 import { browserLog } from '@/services/isos/browser-logs';
 import { draftValidationStamp, validationDisplayIsCurrent, validationResponseIsCurrent, type DraftValidationStamp } from './draft-validation';
 import './node-graph-manager.scss';
@@ -438,7 +439,19 @@ export function NodeGraphManager({ lang, visible = true, onDirtyChange }: Props)
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error), true); }
     finally { setBusy(false); }
   };
-  const stop = async (): Promise<void> => { if (busy) return; setBusy(true); try { const status = await controlProcesses('stop'); setProcessStatus(status); setMessage(lang === 'cn' ? '已停止当前节点图。' : 'Current graph stopped.'); } catch (error) { setMessage(error instanceof Error ? error.message : String(error), true); } finally { setBusy(false); } };
+  const stop = async (): Promise<void> => {
+    if (busy) return;
+    const before = processStatus;
+    setBusy(true);
+    setMessage(lang === 'cn' ? '正在停止…' : 'Stopping…');
+    try {
+      const reply = await stopProcesses();
+      const feedback = stopReplyFeedback(reply, before, lang);
+      setMessage(feedback.text, feedback.alert);
+      try { setProcessStatus(await getProcessStatus()); } catch { /* Keep the Stop outcome visible. */ }
+    } catch { const feedback = stopTransportFeedback(lang); setMessage(feedback.text, feedback.alert); }
+    finally { setBusy(false); }
+  };
   const validationCurrent = !!graph && validationDisplayIsCurrent(validationStamp, graph, editGeneration.current);
   const nodes = useMemo<Node<FlowData>[]>(() => entries.map((entry, index) => ({ id: entry.path, type: 'profile', position: positions[entry.path] || { x: 50 + (index % 3) * 330, y: 50 + Math.floor(index / 3) * 220 }, data: { entry, error: diagnostics.some((item) => item.path.includes(entry.path)), mirrored: !!mirrors[entry.path] }, selected: selected.includes(entry.path) })), [entries, positions, selected, diagnostics, mirrors]);
   const edges = useMemo<Edge[]>(() => entries.flatMap((entry) => Object.entries(entry.node.inputs || {}).flatMap(([input, sources]) => {

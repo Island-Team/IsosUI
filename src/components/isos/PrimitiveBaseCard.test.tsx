@@ -2,12 +2,12 @@
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
-import type { NodeGraphDocument, ProcessStatus } from '../../services/isos/node-graph';
+import type { NodeGraphDocument, ProcessStatus, StopControlReply } from '../../services/isos/node-graph';
 
-const stopMock = vi.fn(async () => ({ schema_version: '1.0.0', state: 'stopped', run_id: 'run-a', run_id_state: 'known', processes: [] }));
+const stopMock = vi.fn(async (): Promise<StopControlReply> => ({ stopped: ['eos'], terminal: { run_id: 'run-a', outcome: 'confirmed', reason_code: null, processes: [{ id: 'eos', outcome: 'confirmed', reason_code: null }] } }));
 vi.mock('../../services/isos/node-graph', async (importOriginal) => {
   vi.stubGlobal('ISOSUI_API_ORIGIN', 'http://127.0.0.1:16000');
-  return { ...(await importOriginal<typeof import('../../services/isos/node-graph')>()), controlProcesses: stopMock,
+  return { ...(await importOriginal<typeof import('../../services/isos/node-graph')>()), stopProcesses: stopMock,
     getNodeGraph: async () => graph, getProcessStatus: async () => statusRead() };
 });
 
@@ -33,9 +33,39 @@ it('keeps IsOS Stop reachable through EOS outage and stale revision', async () =
   expect(invoke.disabled).toBe(true);
   expect(stop.disabled).toBe(false);
   await act(async () => stop.click());
-  expect(stopMock).toHaveBeenCalledWith('stop');
+  expect(stopMock).toHaveBeenCalledWith();
   expect(onStop).toHaveBeenCalled();
-  expect(container.textContent).toContain('IsOS stop status: stopped');
+  expect(container.textContent).toContain('IsOS stop status: Stop confirmed: run-a');
+  await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals();
+});
+
+it('shows pending then an unknown terminal alert even when status refresh fails', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  let finish!: (value: Awaited<ReturnType<typeof stopMock>>) => void;
+  stopMock.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  statusRead = async () => { throw new Error('status offline'); };
+  const container = document.createElement('div'); document.body.appendChild(container); const root = createRoot(container);
+  const { PrimitiveBaseCard } = await import('./PrimitiveBaseCard');
+  await act(async () => root.render(<PrimitiveBaseCard lang="en" graph={graph} status={process} dirty readOnly readings={{}} clock={Date.now()} onStop={() => undefined} onOpenLogs={() => undefined} />));
+  await act(async () => [...container.querySelectorAll('button')].find((button) => button.textContent === 'Stop deployment')!.click());
+  expect(container.textContent).toContain('Stopping…');
+  expect([...container.querySelectorAll('button')].find((button) => button.textContent === 'Stopping…')!.disabled).toBe(true);
+  await act(async () => finish({ stopped: ['eos'], terminal: { run_id: 'run-a', outcome: 'unknown', reason_code: 'eos_stop_unconfirmed', processes: [{ id: 'eos', outcome: 'unknown', reason_code: 'eos_stop_unconfirmed' }] } }));
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain('Stop outcome unknown: eos_stop_unconfirmed');
+  await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals();
+  statusRead = async () => statusState;
+});
+
+it('shows a transport failure without retrying Stop', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  stopMock.mockImplementationOnce(async () => { throw new Error('lost reply'); });
+  const calls = stopMock.mock.calls.length;
+  const container = document.createElement('div'); document.body.appendChild(container); const root = createRoot(container);
+  const { PrimitiveBaseCard } = await import('./PrimitiveBaseCard');
+  await act(async () => root.render(<PrimitiveBaseCard lang="en" graph={graph} status={process} dirty readOnly readings={{}} clock={Date.now()} onStop={() => undefined} onOpenLogs={() => undefined} />));
+  await act(async () => [...container.querySelectorAll('button')].find((button) => button.textContent === 'Stop deployment')!.click());
+  expect(stopMock.mock.calls.length).toBe(calls + 1);
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain('Stop response unavailable');
   await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals();
 });
 
@@ -183,6 +213,7 @@ it('seals an InProgress record on Stop and ignores its late result read', async 
   expect(container.textContent).toContain('Owner status: InProgress');
   expect(container.textContent).toContain('Unavailable for this run');
   expect(container.textContent).toContain(sent[0]);
+  expect([...container.querySelectorAll('button')].find((button) => button.textContent === 'Invoke')!.disabled).toBe(true);
   await act(async () => resolveRead(response({ ok: true, result: { command_id: sent[0], status: 'Completed', reason: null } })));
   expect(container.textContent).not.toContain('Owner status: Completed');
   statusState = { ...statusState, run_id: 'run-b' };
