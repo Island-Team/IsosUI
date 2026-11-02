@@ -2,7 +2,7 @@
 
 [English](../../../docs/isosui/interfaces/browser-results.md) · [设计](../design-browser-results_cn.md) · [首次使用](../usage_cn.md) · EOS 所有者契约：`Island-eos/docs_cn/eos/interfaces/control_cn.md` 中的 R07 章节
 
-**R07 主题分支实现。** 最小模拟适配器类型化控制卡和受保护结果读取器实现本契约。 IsOS 拥有保存图、活动修订、部署运行身份和 Stop。EOS 拥有活动绑定、准入、日志结果和实时状态。IsosUI 可以显示浏览器本地发送状态，但只有与命令关联的 EOS `DispatchResult` 能确定结果。图连线只声明一个绑定目标，不执行浏览器命令。MuJoCo 运动控件必须等 R06 物理停止验证后才能开放。
+**R07 已合并，并完成受管理模拟底盘范围的验证。** IsosUI [#37](https://github.com/Island-Team/IsosUI/pull/37) 与 [#38](https://github.com/Island-Team/IsosUI/pull/38) 实现最小类型化控制卡、受保护结果读取器及匹配运行 ID 的 Stop 显示。[共享 R07 验证记录](https://github.com/Island-Team/Island-eos/blob/refactor%28v2%29/runtime-main/docs/island/implementation-todo.md)证明一次操作员点击的模拟底盘命令以同一 ID 经历 `Sending`、`InProgress` 和持久化 `OutcomeUnknown`，产生一条日志记录，并显示同运行已确认的 Stop。MuJoCo 物理停止、U04 完整逐绑定控件及 M5 发布首次使用重放仍未完成。 IsOS 拥有保存图、活动修订、部署运行身份和 Stop。EOS 拥有活动绑定、准入、日志结果和实时状态。IsosUI 可以显示浏览器本地发送状态，但只有与命令关联的 EOS `DispatchResult` 能确定结果。图连线只声明一个绑定目标，不执行浏览器命令。MuJoCo 运动控件必须等 R06 物理停止验证后才能开放。
 
 ## 类型化边界
 
