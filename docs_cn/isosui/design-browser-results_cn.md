@@ -2,13 +2,13 @@
 
 [English](../../docs/isosui/design-browser-results.md) · [UI 契约](interfaces/browser-results_cn.md) · [首次使用](usage_cn.md)
 
-**R07 主题分支实现。** `EosWorkbench.tsx` 已渲染一个活动底盘绑定，包含类型化发送方、关联结果读取方和状态模型。旧版运动控件不再渲染；U04 后续扩展完整的每绑定 UI。旧控件不能变成另一条运动路径。[EOS 所有者 R07 契约](interfaces/browser-results_cn.md)规定线路和错误；IsOS 拥有修订、运行和 Stop。
+**R07 已合并并完成模拟底盘范围验证。** `EosWorkbench.tsx` 已渲染一个活动底盘绑定，包含类型化发送方、关联结果读取方和状态模型。旧版运动控件不再渲染；U04 后续扩展完整的每绑定 UI。旧控件不能变成另一条运动路径。[EOS 所有者 R07 契约](https://github.com/Island-Team/Island-eos/blob/refactor%28v2%29/runtime-main/docs_cn/eos/interfaces/control_cn.md)规定线路和错误；IsOS 拥有修订、运行和 Stop。
 
 ## 客户端与状态边界
 
 R07 实现使用 `src/services/eos/primitive-command.ts` 和 `primitive-result.ts` 生成精确的公开发送／读取请求并解码六种状态。`PrimitiveBaseCard` 记录受管理的运行和修订，在发送前及每次读取前复查 IsOS，限制后续查询，并在 EOS 错误期间保持 IsOS Stop 与当前运行日志入口。运动卡目前仅允许 `mock-cxx` 底盘；MuJoCo 运动仍由 R06 把关。
 
-仓库根目录执行 `python3 tests/fixtures/browser_results/check.py` 通过 46 项，`npm test` 通过 96 项，`npm run build` 在 Node 22 和 npm 10 下生成有效的本地及托管构建。审查修复的完整输出保存在忽略提交的 `logs/test/20261102-r07-ui-review-fix/`；初次实现输出保留在 `logs/test/20261102-r07-ui/`。实际首次使用重放尚未完成：实现检查时 `127.0.0.1:16000` 的 IsOS 和 `127.0.0.1:16020` 的 EOS 均未运行；`live-probe.log` 记录连接失败。关闭 R07 前仍需独立实现复审与受管理模拟适配器重放。审查修复测试覆盖发送中禁止轮询、旧修订后的迟到回复、发送响应丢失后不重发运动、单条在途读取、读取后再次核对 IsOS、隐藏页暂停、60 秒上限、跳过未验证的 MuJoCo 绑定，以及准入的旧版 `@v1.0` 模拟绑定。公开载荷字节测试保留 `0.000001`，不增加 UI 精度限制。
+仓库根目录执行 `python3 tests/fixtures/browser_results/check.py` 通过 46 项，`npm test` 通过 96 项，`npm run build` 在 Node 22 和 npm 10 下生成有效的本地及托管构建。审查修复的完整输出保存在忽略提交的 `logs/test/20261102-r07-ui-review-fix/`；初次实现输出保留在 `logs/test/20261102-r07-ui/`。这是早期实现检查：当时 `127.0.0.1:16000` 的 IsOS 和 `127.0.0.1:16020` 的 EOS 均未运行，`live-probe.log` 记录连接失败。后续独立审查和受管理模拟重放已完成下述 R07 范围验证。审查修复测试覆盖发送中禁止轮询、旧修订后的迟到回复、发送响应丢失后不重发运动、单条在途读取、读取后再次核对 IsOS、隐藏页暂停、60 秒上限、跳过未验证的 MuJoCo 绑定，以及准入的旧版 `@v1.0` 模拟绑定。公开载荷字节测试保留 `0.000001`，不增加 UI 精度限制。
 
 新增 `src/services/eos/primitive-command.ts` 作为狭窄的 `base.velocity` 发送方，`src/services/eos/primitive-result.ts` 作为受保护读取方，二者沿用已验证回环地址与请求选项。发送方接收已解析的活动绑定、其唯一图连线目标、活动修订、已校验的 `body_velocity` 参数、EOS 单调时间、正序号和新命令 ID；它只生成公开 `primitive_typed` 封包，以 `TextEncoder` 计算紧凑 JSON 的 `payload_length_bytes`，拒绝不安全时钟／期限数值。它不接受自由目标或私有授权。结果客户端只接受 `{commandId, activeRevision}`，生成恰好 `op`、`command_id`、`active_revision` 三个公开键，解析六状态 `DispatchResult`，核对命令 ID，并把有界传输／所有者／协议错误映射为可辨识结果。两个客户端共用解码器，使首次发送与后续查询的状态语义相同。组件不能直接调用 `fetch`。HTTP 拒绝或 `ok:false` 响应是错误，不能强行转成命令的 `Rejected` 状态。服务超时或损坏的成功响应是不可用，不是 `OutcomeUnknown`，因为只有 EOS 能赋予命令该状态。
 
@@ -26,9 +26,13 @@ R07 呈现一个最小活动 base 绑定卡，显示图解析目标及四个有�
 
 ## 审查与验证门槛
 
-[夹具矩阵](../../tests/fixtures/browser_results/cases.json)固定类型化发送、结果读取、所有者结果、运行／修订、离线、日志入口与 Stop 转换。实现测试须用模拟 EOS 桥接和 IsOS 状态服务验证精确公开请求体、无授权、唯一活动绑定与目标、载荷字节长度、安全单调期限、六种状态、运行变更后的迟到响应、首次发送超时但不重发运动、一次仅一个读取、隐藏页暂停、六十秒上限、`unknown command ID` 不透明、桥接 502/503、修订过期、损坏结果及 IsOS Stop 可用性。浏览器组件测试须证明 EOS 离线且活动修订不符时 Stop 仍可用。本地与托管构建均须通过 `npm test` 和 `npm run build`。跨所有者首次使用重放须使用受管理的模拟适配器 IsOS 保存／活动运行、EOS 桥接、真实 `primitive_typed` 响应及 `InProgress` 后续查询，随后 Stop 并查看当前运行日志。真实 MuJoCo 运动仍由 R06 把关。R07 与 U04 须待各自证据及独立实现审查后才能关闭。
+[夹具矩阵](../../tests/fixtures/browser_results/cases.json)固定类型化发送、结果读取、所有者结果、运行／修订、离线、日志入口与 Stop 转换。实现测试须用模拟 EOS 桥接和 IsOS 状态服务验证精确公开请求体、无授权、唯一活动绑定与目标、载荷字节长度、安全单调期限、六种状态、运行变更后的迟到响应、首次发送超时但不重发运动、一次仅一个读取、隐藏页暂停、六十秒上限、`unknown command ID` 不透明、桥接 502/503、修订过期、损坏结果及 IsOS Stop 可用性。浏览器组件测试须证明 EOS 离线且活动修订不符时 Stop 仍可用。本地与托管构建均须通过 `npm test` 和 `npm run build`。跨所有者首次使用重放须使用受管理的模拟适配器 IsOS 保存／活动运行、EOS 桥接、真实 `primitive_typed` 响应及 `InProgress` 后续查询，随后 Stop 并查看当前运行日志。真实 MuJoCo 运动仍由 R06 把关。R07 范围验证现已在合并的所有者版本上完成；完整逐绑定工作台 U04 仍未完成。
 
-此修订设计运行 `python3 tests/fixtures/browser_results/check.py`，46 个唯一发送／读取／状态用例与六种状态均通过；相对链接检查覆盖十二个修改的中英文设计及夹具页面；`git diff --check` 也通过。完整输出位于被 Git 忽略的 `logs/test/20261102-r07-isosui-design-revision/`。实现前仍需独立设计审查。
+此修订设计运行 `python3 tests/fixtures/browser_results/check.py`，46 个唯一发送／读取／状态用例与六种状态均通过；相对链接检查覆盖十二个修改的中英文设计及夹具页面；`git diff --check` 也通过。完整输出位于被 Git 忽略的 `logs/test/20261102-r07-isosui-design-revision/`。这是实现前的设计检查记录；后续独立设计及实现审查均已通过。
+
+## 合并版本 R07 验证
+
+EOS [#323](https://github.com/Island-Team/Island-eos/pull/323)、[#324](https://github.com/Island-Team/Island-eos/pull/324) 与 IsosUI [#37](https://github.com/Island-Team/IsosUI/pull/37)、[#38](https://github.com/Island-Team/IsosUI/pull/38) 通过独立审查及合并后范围验证。[共享 R07 记录](https://github.com/Island-Team/Island-eos/blob/refactor%28v2%29/runtime-main/docs/island/implementation-todo.md)固定了合并版本和带校验和的重放目录。一次受管理模拟底盘 UI 点击以同一命令 ID 经历 `Sending`、`InProgress` 和持久化 `OutcomeUnknown`，产生一条日志记录。公开结果所有权及拒绝边界、桥接离线、旧运行不透明、`Releasing` 期间 Stop、重启后不重发、同运行 Stop 确认显示与结果围栏均通过。最终 UI 重放用真实 IsOS 验证已确认 Stop 和传输故障；明确的所有者拒绝使用与 IsOS HTTP 422 响应完全相同的桩。未知 Stop 终态由挂载组件测试覆盖，未在模拟图实时诱发。UI 检查通过 113 项测试和两种构建。R06 仍负责 MuJoCo 物理停止，U04 负责完整逐绑定控件，M5 负责完整发布首次使用重放。
 
 ## Stop 终态显示修正
 
