@@ -370,3 +370,46 @@ it('fences every binding immediately after Stop intent and keeps them fenced thr
   expect(container.textContent).toContain('Stop outcome unknown');
   await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals(); statusRead = async () => statusState;
 });
+
+it('seals a sibling InProgress result on Stop and ignores a late Completed reply', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  statusState = { ...process, active_revision: revision }; statusRead = async () => statusState;
+  const two = JSON.parse(JSON.stringify(graph)) as NodeGraphDocument;
+  two.graph.cores.eos.layers.dispatcher.groups.base.nodes.second = { ...two.graph.cores.eos.layers.dispatcher.groups.base.nodes.velocity, id: 'second' };
+  two.graph.cores.eos.layers.hardware.groups.base.nodes.other = { ...two.graph.cores.eos.layers.hardware.groups.base.nodes.drive, id: 'other', inputs: { command: [{ node: 'eos/dispatcher/base/second', output: 'command' }] } };
+  graphRead = two;
+  let finishResult!: (value: ReturnType<typeof response>) => void;
+  const pendingResult = new Promise<ReturnType<typeof response>>((resolve) => { finishResult = resolve; });
+  const bodies: Record<string, unknown>[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => { const body = JSON.parse(init.body as string) as Record<string, unknown>; bodies.push(body);
+    if (body.op === 'time') return response({ ok: true, monotonic_ns: 100 });
+    if (body.op === 'result') return pendingResult;
+    return response({ ok: true, result: { command_id: (body.header as { command_id: string }).command_id, status: 'InProgress', reason: null } });
+  }));
+  let finishStop!: (value: StopControlReply) => void;
+  stopMock.mockImplementationOnce(() => new Promise((resolve) => { finishStop = resolve; }));
+  const container = document.createElement('div'); document.body.appendChild(container); const root = createRoot(container);
+  const { PrimitiveBaseCard } = await import('./PrimitiveBaseCard');
+  function Pair(): React.ReactElement {
+    const [fencedRun, setFencedRun] = React.useState<string | null>(null);
+    const fenceRef = React.useRef<string | null>(null);
+    const markStop = (runId: string | null): void => { fenceRef.current = runId; setFencedRun(runId); };
+    return <>{['velocity', 'second'].map((name) => <PrimitiveBaseCard key={name} lang="en" bindingPath={`eos/dispatcher/base/${name}`} graph={two} status={statusState} dirty={false} readOnly={false}
+      readings={{ ...ready(), 'eos/hardware/base/other': { status: { state: 'ready' }, statusAt: Date.now(), health: { state: 'healthy' }, healthAt: Date.now() } }} clock={Date.now()}
+      stopFenced={fencedRun === statusState.run_id} isStopFenced={() => fenceRef.current === statusState.run_id} onStopIntent={markStop} onStop={() => undefined} onOpenLogs={() => undefined} />)}</>;
+  }
+  await act(async () => root.render(<Pair />));
+  const cards = (): HTMLElement[] => [...container.querySelectorAll<HTMLElement>('.eos-control__card')];
+  await act(async () => (cards()[1].querySelector('button.eos-control__primary') as HTMLButtonElement).click());
+  expect(cards()[1].textContent).toContain('InProgress');
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 1100)); });
+  expect(bodies.filter((body) => body.op === 'result')).toHaveLength(1);
+  await act(async () => (cards()[0].querySelectorAll('button')[1] as HTMLButtonElement).click());
+  expect(cards()[1].textContent).toContain('Deployment Stop requested');
+  const commandId = (bodies.find((body) => body.op === 'result') as { command_id: string }).command_id;
+  await act(async () => finishResult(response({ ok: true, result: { command_id: commandId, status: 'Completed', reason: null } })));
+  expect(cards()[1].textContent).toContain('InProgress');
+  expect(cards()[1].textContent).not.toContain('Owner status: Completed');
+  await act(async () => finishStop({ stopped: ['eos'], terminal: { run_id: 'run-a', outcome: 'unknown', reason_code: 'eos_stop_unconfirmed', processes: [{ id: 'eos', outcome: 'unknown', reason_code: 'eos_stop_unconfirmed' }] } }));
+  await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals(); graphRead = graph;
+});

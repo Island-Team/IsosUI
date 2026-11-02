@@ -49,24 +49,28 @@ export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, bindin
     const fence = status ? resultFence(current, status) : 'unavailable';
     if (fence !== 'current') seal(current, fence);
   }, [status?.run_id, status?.run_id_state, status?.saved_revision, status?.active_revision, status?.state]);
+  useEffect(() => { const current = recordRef.current;
+    if (!stopFenced || !current || current.runId !== status?.run_id || current.error?.kind === 'old_run') return;
+    cancel(); update(primitiveError(current, 'old_run', 'Deployment Stop requested; result follow-up ended for this run.'));
+  }, [stopFenced, status?.run_id]);
   const targetLive = binding && monitorBadge(readings[binding.targetPath], clock) === 'live';
   const canInvoke = Boolean(binding && targetLive && graph && sendFence(graph.revision, status, dirty, readOnly) && !stopFenced && !isStopFenced?.() && status?.run_id !== stoppedRunId && value.type === binding.mode && movementValid(value, binding.target) && record?.phase !== 'sending' && !stopping);
   const follow = async (manual = false): Promise<void> => {
     const current = recordRef.current;
-    if (!current || inFlight.current !== null || !current.submitAttempted || current.phase === 'sending' || current.phase === 'terminal' || (current.result && terminalResult(current.result.status)) || current.error?.kind === 'old_run' ||
+    if (!current || stopFenced || isStopFenced?.() || inFlight.current !== null || !current.submitAttempted || current.phase === 'sending' || current.phase === 'terminal' || (current.result && terminalResult(current.result.status)) || current.error?.kind === 'old_run' ||
       (!manual && !pollAllowed(current, Date.now(), document.visibilityState === 'visible', false))) return;
     const token = generation.current;
     inFlight.current = token;
     const abort = new AbortController(); controller.current = abort;
     try {
       const fresh = await getProcessStatus(abort.signal);
-      if (token !== generation.current || abort.signal.aborted) return;
+      if (token !== generation.current || abort.signal.aborted || isStopFenced?.()) return;
       const fence = resultFence(current, fresh);
       if (fence !== 'current') { update(primitiveError(current, fence === 'old_run' ? 'old_run' : 'identity_unavailable', fence === 'old_run' ? 'Old deployment run or revision.' : 'IsOS run identity unavailable.')); return; }
       const result = await readPrimitiveResult(current.commandId, current.activeRevision, abort.signal);
-      if (token !== generation.current || abort.signal.aborted || recordRef.current?.commandId !== current.commandId) return;
+      if (token !== generation.current || abort.signal.aborted || isStopFenced?.() || recordRef.current?.commandId !== current.commandId) return;
       const afterRead = await getProcessStatus(abort.signal);
-      if (token !== generation.current || abort.signal.aborted || recordRef.current?.commandId !== current.commandId) return;
+      if (token !== generation.current || abort.signal.aborted || isStopFenced?.() || recordRef.current?.commandId !== current.commandId) return;
       const afterFence = resultFence(current, afterRead);
       if (afterFence !== 'current') { update(primitiveError(recordRef.current, afterFence === 'old_run' ? 'old_run' : 'identity_unavailable', afterFence === 'old_run' ? 'Old deployment run or revision.' : 'IsOS run identity unavailable.')); return; }
       update(acceptPrimitiveResult({ ...recordRef.current, attempts: recordRef.current.attempts + 1 }, result));
@@ -75,14 +79,14 @@ export function PrimitiveBaseCard({ lang, graph, status, dirty, readOnly, bindin
     } finally { if (inFlight.current === token) inFlight.current = null; if (controller.current === abort) controller.current = null; }
   };
   useEffect(() => {
-    if (!record || record.phase === 'sending' || record.phase === 'terminal' || record.phase === 'paused' || record.error?.kind === 'old_run' || record.error?.kind === 'identity_unavailable' || !record.submitAttempted) return;
+    if (!record || stopFenced || isStopFenced?.() || record.phase === 'sending' || record.phase === 'terminal' || record.phase === 'paused' || record.error?.kind === 'old_run' || record.error?.kind === 'identity_unavailable' || !record.submitAttempted) return;
     if (record.attempts >= 12 || Date.now() - record.startedAt >= 60_000) { update({ ...record, phase: 'paused' }); return; }
     const delay = record.phase === 'unavailable' ? Math.min(10_000, 1000 * 2 ** Math.min(record.attempts, 4)) : 1000;
     const timer = window.setTimeout(() => { if (document.visibilityState === 'visible') void follow(); }, delay);
     const visible = (): void => { if (document.visibilityState === 'visible') { if (Date.now() - record.startedAt >= 60_000) update({ ...record, phase: 'paused' }); else void follow(); } };
     document.addEventListener('visibilitychange', visible);
     return () => { window.clearTimeout(timer); document.removeEventListener('visibilitychange', visible); };
-  }, [record]);
+  }, [record, stopFenced]);
   const invoke = async (): Promise<void> => {
     if (!canInvoke || !binding || !graph) return;
     cancel(); const token = generation.current; const abort = new AbortController(); controller.current = abort;

@@ -33,4 +33,3 @@ export function MovementEditor({ value, hardware, onChange, lang }: { value: Mov
     <NumberInput label={lang === 'cn' ? '最大速度' : 'Max speed'} unit="m/s" max={limits.max_end_effector_speed_m_s} value={value.max_speed_m_s ?? Number.NaN} onChange={(n) => onChange({ ...value, max_speed_m_s: Number.isNaN(n) ? null : n })} />
   </div>;
 }
-
