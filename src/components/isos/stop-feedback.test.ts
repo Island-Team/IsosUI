@@ -1,11 +1,11 @@
 import { expect, it } from 'vitest';
-import type { ProcessStatus, StopControlReply } from '../../services/isos/node-graph';
+import type { ProcessStatus, StopControlReply, StopTerminal } from '../../services/isos/node-graph';
 import { IsosApiError } from '../../services/isos/api-client';
 import { stopReplyFeedback, stopFailureFeedback } from './stop-feedback';
 
 const before: ProcessStatus = { schema_version: '1.0.0', state: 'running', run_id: 'run-a', run_id_state: 'known', processes: [] };
 const reply = (terminal: unknown): StopControlReply => ({ stopped: ['eos'], terminal } as StopControlReply);
-const confirmed = { run_id: 'run-a', outcome: 'confirmed', reason_code: null, processes: [{ id: 'eos', outcome: 'confirmed', reason_code: null }] };
+const confirmed: StopTerminal = { run_id: 'run-a', outcome: 'confirmed', reason_code: null, processes: [{ id: 'eos', outcome: 'confirmed', reason_code: null }] };
 
 it('confirms only a complete, run-matched owner terminal', () => {
   expect(stopReplyFeedback(reply(confirmed), before, 'en')).toEqual({ text: 'Stop confirmed: run-a', alert: false });
@@ -13,6 +13,8 @@ it('confirms only a complete, run-matched owner terminal', () => {
   expect(stopReplyFeedback(reply(confirmed), { ...before, run_id_state: 'unavailable' }, 'en').alert).toBe(true);
   expect(stopReplyFeedback(reply({ ...confirmed, processes: [{ id: 'eos', outcome: 'unknown', reason_code: 'eos_stop_unconfirmed' }] }), before, 'en').alert).toBe(true);
   expect(stopReplyFeedback(reply({ ...confirmed, processes: [confirmed.processes[0], confirmed.processes[0]] }), before, 'en')).toEqual({ text: 'Stop unconfirmed', alert: true });
+  expect(stopReplyFeedback(reply({ ...confirmed, processes: [] }), before, 'en')).toEqual({ text: 'Stop unconfirmed', alert: true });
+  expect(stopReplyFeedback({ stopped: ['eos', 'eos'], terminal: confirmed }, before, 'en')).toEqual({ text: 'Stop unconfirmed', alert: true });
 });
 
 it('shows a fixed unknown reason as an alert in both languages', () => {

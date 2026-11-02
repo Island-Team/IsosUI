@@ -59,3 +59,5 @@
 Stop 响应包含 `stopped`（已回收的直属子进程 ID）和独立的 `terminal` 对象或 null；它不是 `process-status` 快照。点击 Stop 时立即隔离未完成的 EOS 结果读取，并阻止在该运行中再次调用。收到 IsOS 响应前显示等待。只有格式正确的 `terminal.outcome:"confirmed"`、`terminal.run_id` 与点击时捕获的已知运行相同、原因为 null 且子进程结果均已确认时，才显示**停止已确认**。格式正确的 `unknown` 以告警显示固定 `reason_code`。`terminal` 为 null、缺失、格式错误或运行不符时显示**停止未获确认**；若权威状态为 `run_id_state:none` 且 `terminal:null`，则显示没有需要停止的受管运行。传输失败显示**停止响应不可用**，不会自动重试。收到响应后，另行读取新的 `GET /process-status` 更新实时运行与修订；刷新失败不能抹去已知 Stop 结果。Home、Graph 和 EOS 的 Stop 控件采用相同解释。
 
 重复的子进程 ID 不能构成格式正确的终态。即使从未运行，`terminal:null` 且 `stopped` 非空也属于未确认。明确的 IsOS API 错误显示为**IsOS 拒绝停止**并附带所有者消息，与传输不可用分开。
+
+`stopped` 中的每个 ID 都必须出现在 `terminal.processes` 中；确认终态若缺少对应子进程记录，仍显示未确认。

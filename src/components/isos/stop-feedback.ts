@@ -30,10 +30,12 @@ export function stopReplyFeedback(reply: StopControlReply, before: ProcessStatus
     confirmed: '停止已确认', unknown: '停止结果未知', unconfirmed: '停止未获确认', noRun: '没有需要停止的受管运行',
   } : { confirmed: 'Stop confirmed', unknown: 'Stop outcome unknown', unconfirmed: 'Stop unconfirmed', noRun: 'No managed run to stop' };
   if (!object(reply) || !Array.isArray(reply.stopped) || !reply.stopped.every(processId) || new Set(reply.stopped).size !== reply.stopped.length) return { text: c.unconfirmed, alert: true };
-  if (reply.terminal === null && reply.stopped.length === 0 && before?.run_id_state === 'none' && before.run_id == null) return { text: c.noRun, alert: false };
-  if (!validTerminal(reply.terminal) || before?.run_id_state !== 'known' || reply.terminal.run_id !== before.run_id) return { text: c.unconfirmed, alert: true };
-  if (reply.terminal.outcome === 'unknown') return { text: `${c.unknown}: ${reply.terminal.reason_code}`, alert: true };
-  return { text: `${c.confirmed}: ${reply.terminal.run_id}`, alert: false };
+  const terminal = reply.terminal;
+  if (terminal === null && reply.stopped.length === 0 && before?.run_id_state === 'none' && before.run_id == null) return { text: c.noRun, alert: false };
+  if (!validTerminal(terminal) || before?.run_id_state !== 'known' || terminal.run_id !== before.run_id) return { text: c.unconfirmed, alert: true };
+  if (reply.stopped.some((id) => !terminal.processes.some((process) => process.id === id))) return { text: c.unconfirmed, alert: true };
+  if (terminal.outcome === 'unknown') return { text: `${c.unknown}: ${terminal.reason_code}`, alert: true };
+  return { text: `${c.confirmed}: ${terminal.run_id}`, alert: false };
 }
 
 export function stopFailureFeedback(error: unknown, lang: Language): StopFeedback {
