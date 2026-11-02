@@ -3,13 +3,14 @@ import { request } from './api-client';
 /** One registered node type. Placement belongs to this definition, not an instance setting. */
 export interface NodeTypeDefinition {
   id: string;
+  description?: string;
   core: string;
   layer: string;
   group: string;
   kind: 'camera' | 'base' | 'manipulator' | 'software';
   lifecycle: 'internal' | 'process' | 'adapter';
   capabilities: string[];
-  settings: { name: string; data_type: 'string' | 'positive_integer' | 'nonnegative_integer' | 'string_array' | 'string_table'; required: boolean; description?: string; unit?: string; min?: number; max?: number; choices?: string[] }[];
+  settings: { name: string; data_type: 'string' | 'positive_integer' | 'nonnegative_integer' | 'string_array' | 'string_table'; required: boolean; description?: string; unit?: string; min?: number; max?: number; choices?: string[]; selector?: { provider: 'package' | 'registry' | 'graph'; resource: string; package_from?: string } }[];
   inputs: PortDefinition[];
   outputs: PortDefinition[];
   safety_adapter_type?: string | null;
@@ -31,7 +32,7 @@ export interface NodeInstance {
   references?: string[];
   frame_id?: string;
   joint_names?: string[];
-  adapter?: { type: string; settings?: Record<string, unknown> };
+  adapter?: { type: string; package?: { id: string; version: string }; settings?: Record<string, unknown> };
   health_timing?: { poll_interval_ms: number; stale_after_ms: number };
   observation?: { max_rate_hz: number; max_payload_bytes: number };
   movement?: { modes: string[]; limits: Record<string, number> };
@@ -84,7 +85,9 @@ export interface LinkPreview { id: string; version: string; ready: boolean; issu
 export interface AdapterFamilyOption { id: string; device_kinds: string[]; package?: { id: string; version: string }; compiled: boolean; transport: string; description: string; available: boolean; reason?: string }
 export interface PrimitiveBindingOption { node_type: string; device_kind: string; movement_types: string[]; available: boolean; reason?: string }
 export interface HardwareTargetOption { path: string; node_type: string; device_kind: string; adapter_type: string; movement_types: string[]; available: boolean; reason?: string }
-export interface NodeOptions { adapter_families: AdapterFamilyOption[]; primitive_bindings: PrimitiveBindingOption[]; targets: HardwareTargetOption[] }
+export interface SettingOption { value: string; label: string; description: string; available: boolean; reason_code: string | null; reason: string | null }
+export interface SettingOptionGroup { node_path: string; setting: string; selected: string | null; options: SettingOption[] }
+export interface NodeOptions { adapter_families: AdapterFamilyOption[]; primitive_bindings: PrimitiveBindingOption[]; targets: HardwareTargetOption[]; setting_options?: SettingOptionGroup[]; graph_revision?: string | null; read_only?: boolean }
 export interface PrimitiveSpec { name: string; version: string; device_class: string; movement_type: string; description: string }
 
 function isObject(value: unknown): value is Record<string, unknown> {
