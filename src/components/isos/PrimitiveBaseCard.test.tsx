@@ -9,7 +9,7 @@ const stopMock = vi.fn(async (): Promise<StopControlReply> => ({ stopped: ['eos'
 vi.mock('../../services/isos/node-graph', async (importOriginal) => {
   vi.stubGlobal('ISOSUI_API_ORIGIN', 'http://127.0.0.1:16000');
   return { ...(await importOriginal<typeof import('../../services/isos/node-graph')>()), stopProcesses: stopMock,
-    getNodeGraph: async () => graph, getProcessStatus: async () => statusRead() };
+    getNodeGraph: async () => graphRead, getProcessStatus: async () => statusRead() };
 });
 
 const revision = 'a'.repeat(64);
@@ -17,6 +17,7 @@ const graph: NodeGraphDocument = { revision, graph: { version: '0.1.0', robot: {
   dispatcher: { groups: { base: { nodes: { velocity: { id: 'velocity', node_type: 'eos.dispatcher.primitive_base@v0.1', label: '', description: '', settings: { primitive_name: 'base.velocity', primitive_version: '1.0.0', movement_type: 'body_velocity' } } } } } },
   hardware: { groups: { base: { nodes: { drive: { id: 'drive', node_type: 'eos.hardware.base@v0.1', label: '', description: '', adapter: { type: 'mock-cxx' }, inputs: { command: [{ node: 'eos/dispatcher/base/velocity', output: 'command' }] }, movement: { modes: ['body_velocity'], limits: { max_linear_m_s: 0.5, max_angular_rad_s: 0.5, max_velocity_lease_ms: 300 } } } } } } },
 } } } } };
+let graphRead: NodeGraphDocument = graph;
 const process: ProcessStatus = { schema_version: '1.0.0', state: 'running', run_id: 'run-a', run_id_state: 'known', saved_revision: revision, active_revision: 'b'.repeat(64), processes: [] };
 let statusState = process;
 let statusRead = async (): Promise<ProcessStatus> => statusState;
@@ -291,7 +292,7 @@ it('pauses a hidden InProgress command at the 60-second bound', async () => {
   await act(async () => root.unmount()); container.remove(); vi.useRealTimers(); vi.unstubAllGlobals();
 });
 
-it('selects an eligible mock binding after an unqualified MuJoCo binding', async () => {
+it('selects the exact requested binding among several active targets', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   statusState = { ...process, active_revision: revision };
   const mixed = JSON.parse(JSON.stringify(graph)) as NodeGraphDocument;
@@ -300,14 +301,14 @@ it('selects an eligible mock binding after an unqualified MuJoCo binding', async
   eos.hardware.groups.base.nodes.sim = { ...eos.hardware.groups.base.nodes.drive, id: 'sim', adapter: { type: 'mujoco-v2' }, inputs: { command: [{ node: 'eos/dispatcher/base/a_sim', output: 'command' }] } };
   const container = document.createElement('div'); document.body.appendChild(container); const root = createRoot(container);
   const { PrimitiveBaseCard } = await import('./PrimitiveBaseCard');
-  await act(async () => root.render(<PrimitiveBaseCard lang="en" graph={mixed} status={statusState} dirty={false} readOnly={false} readings={ready()} clock={Date.now()} onStop={() => undefined} onOpenLogs={() => undefined} />));
+  await act(async () => root.render(<PrimitiveBaseCard lang="en" bindingPath="eos/dispatcher/base/velocity" graph={mixed} status={statusState} dirty={false} readOnly={false} readings={ready()} clock={Date.now()} onStop={() => undefined} onOpenLogs={() => undefined} />));
   expect(container.textContent).toContain('Binding: eos/dispatcher/base/velocity');
   expect(container.textContent).not.toContain('eos/dispatcher/base/a_sim');
   expect([...container.querySelectorAll('button')].find((button) => button.textContent === 'Invoke')!.disabled).toBe(false);
   await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals();
 });
 
-it('keeps an admitted legacy v1.0 mock binding eligible through the same typed card', async () => {
+it('leaves legacy v1.0 bindings read-only in the U04 card', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   statusState = { ...process, active_revision: revision };
   const legacy = JSON.parse(JSON.stringify(graph)) as NodeGraphDocument;
@@ -316,7 +317,28 @@ it('keeps an admitted legacy v1.0 mock binding eligible through the same typed c
   const container = document.createElement('div'); document.body.appendChild(container); const root = createRoot(container);
   const { PrimitiveBaseCard } = await import('./PrimitiveBaseCard');
   await act(async () => root.render(<PrimitiveBaseCard lang="cn" graph={legacy} status={statusState} dirty={false} readOnly={false} readings={ready()} clock={Date.now()} onStop={() => undefined} onOpenLogs={() => undefined} />));
-  expect([...container.querySelectorAll('button')].find((button) => button.textContent === '调用')!.disabled).toBe(false);
-  expect(container.textContent).toContain('eos/dispatcher/base/velocity');
+  expect([...container.querySelectorAll('button')].find((button) => button.textContent === '调用')!.disabled).toBe(true);
+  expect(container.textContent).toContain('没有恰好一个目标');
   await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals();
+});
+
+it('invokes one active arm binding with typed payload and preserves a Failed owner result', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  statusState = { ...process, active_revision: revision }; statusRead = async () => statusState;
+  const armGraph = JSON.parse(JSON.stringify(graph)) as NodeGraphDocument;
+  armGraph.graph.cores.eos.layers.dispatcher.groups.manipulator = { nodes: { movej: { id: 'movej', node_type: 'eos.dispatcher.primitive_manipulator@v0.1', label: 'Arm move', description: 'Joint motion', settings: { primitive_name: 'arm.movej', primitive_version: '1.0.0', movement_type: 'joint_positions' } } } };
+  armGraph.graph.cores.eos.layers.hardware.groups.manipulator = { nodes: { arm: { id: 'arm', node_type: 'eos.hardware.manipulator@v0.1', label: 'Arm', description: 'Tool', joint_names: ['j1'], inputs: { command: [{ node: 'eos/dispatcher/manipulator/movej', output: 'command' }] }, movement: { modes: ['joint_positions'], limits: { max_joint_position_rad: 1, max_joint_speed_rad_s: 1 } } } } };
+  graphRead = armGraph;
+  const bodies: Record<string, unknown>[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => { const body = JSON.parse(init.body as string) as Record<string, unknown>; bodies.push(body);
+    return response(body.op === 'time' ? { ok: true, monotonic_ns: 100 } : { ok: true, result: { command_id: (body.header as { command_id: string }).command_id, status: 'Failed', reason: 'adapter failed' } }); }));
+  const container = document.createElement('div'); document.body.appendChild(container); const root = createRoot(container);
+  const { PrimitiveBaseCard } = await import('./PrimitiveBaseCard');
+  await act(async () => root.render(<PrimitiveBaseCard lang="en" bindingPath="eos/dispatcher/manipulator/movej" graph={armGraph} status={statusState} dirty={false} readOnly={false} readings={{ 'eos/hardware/manipulator/arm': { status: { state: 'ready' }, statusAt: Date.now(), health: { state: 'healthy' }, healthAt: Date.now() } }} clock={Date.now()} onStop={() => undefined} onOpenLogs={() => undefined} />));
+  await act(async () => [...container.querySelectorAll('button')].find((button) => button.textContent === 'Invoke')!.click());
+  expect(bodies.filter((body) => body.op === 'primitive_typed')).toHaveLength(1);
+  expect((bodies[1].header as Record<string, unknown>)).toMatchObject({ data_type_id: 'manipulator_movement', primitive_name: 'arm.movej', target_path: 'eos/hardware/manipulator/arm' });
+  expect(container.textContent).toContain('Owner status: Failed');
+  expect(container.textContent).toContain('adapter failed');
+  await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals(); graphRead = graph;
 });

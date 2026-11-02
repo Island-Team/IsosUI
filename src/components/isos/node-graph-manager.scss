@@ -204,3 +204,13 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.node-graph-card__info { float: right; min-width: 30px; min-height: 30px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text); cursor: pointer; }
+.node-graph-info-card { position: fixed; z-index: 1000; box-sizing: border-box; width: min(340px, calc(100vw - 16px)); max-height: min(340px, calc(100vh - 16px)); overflow: auto; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-secondary); color: var(--text); box-shadow: 0 8px 24px rgba(0, 0, 0, .25); font-size: .82rem; }
+.node-graph-info-card > button { float: right; min-width: 30px; min-height: 30px; }
+.node-graph-info-card h3, .node-graph-info-card h4 { margin: 4px 0; }
+.node-graph-info-card p { margin: 7px 0; }
+.node-graph-info-card ul { margin: 4px 0 8px; padding-left: 18px; }
+.node-graph-info-card code { overflow-wrap: anywhere; }
+@media (pointer: coarse) { .node-graph-card__info, .node-graph-info-card > button { min-width: 44px; min-height: 44px; } }
+.node-graph-card__info:focus-visible, .node-graph-info-card button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
